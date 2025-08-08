@@ -8,32 +8,30 @@ import {
 export function convertToAnthropicStream(
   stream: ReadableStream<TextStreamPart<Record<string, Tool>>>
 ): ReadableStream<AnthropicStreamChunk> {
+  let index = 0; // content block index within the current message
+
   const transform = new TransformStream<
     TextStreamPart<Record<string, Tool>>,
     AnthropicStreamChunk
   >({
     transform(chunk, controller) {
-      let index = 0;
-
       switch (chunk.type) {
-        case "step-start":
+        case "start-step": {
           controller.enqueue({
             type: "message_start",
             message: {
-              id: chunk.messageId,
+              id: "msg_" + Date.now(),
               role: "assistant",
               content: [],
               model: "claude-4-sonnet-20250514",
               stop_reason: null,
               stop_sequence: null,
-              usage: {
-                input_tokens: 0,
-                output_tokens: 0,
-              },
+              usage: { input_tokens: 0, output_tokens: 0 },
             },
           });
           break;
-        case "step-finish":
+        }
+        case "finish-step": {
           controller.enqueue({
             type: "message_delta",
             delta: {
@@ -41,63 +39,81 @@ export function convertToAnthropicStream(
               stop_sequence: null,
             },
             usage: {
-              input_tokens: chunk.usage.promptTokens,
-              output_tokens: chunk.usage.completionTokens,
-            },
-          });
-          index++;
-          break;
-        case "finish":
-          controller.enqueue({
-            type: "message_stop",
-          });
-          break;
-        case "text-delta":
-          controller.enqueue({
-            type: "content_block_delta",
-            index: index,
-            delta: {
-              type: "text_delta",
-              text: chunk.textDelta,
+              input_tokens: chunk.usage.inputTokens ?? 0,
+              output_tokens: chunk.usage.outputTokens ?? 0,
             },
           });
           break;
-        case "tool-call-streaming-start":
+        }
+        case "finish": {
+          controller.enqueue({ type: "message_stop" });
+          // reset index for next message
+          index = 0;
+          break;
+        }
+        case "text-start": {
           controller.enqueue({
             type: "content_block_start",
-            index: index,
+            index,
+            content_block: { type: "text", text: "" },
+          });
+          break;
+        }
+        case "text-delta": {
+          controller.enqueue({
+            type: "content_block_delta",
+            index,
+            delta: { type: "text_delta", text: chunk.text },
+          });
+          break;
+        }
+        case "text-end": {
+          controller.enqueue({ type: "content_block_stop", index });
+          index += 1;
+          break;
+        }
+        case "tool-input-start": {
+          controller.enqueue({
+            type: "content_block_start",
+            index,
             content_block: {
               type: "tool_use",
-              id: chunk.toolCallId,
+              id: chunk.id,
               name: chunk.toolName,
               input: {},
             },
           });
           break;
-        case "tool-call-delta":
+        }
+        case "tool-input-delta": {
           controller.enqueue({
             type: "content_block_delta",
-            index: index,
-            delta: {
-              type: "input_json_delta",
-              partial_json: chunk.argsTextDelta,
-            },
+            index,
+            delta: { type: "input_json_delta", partial_json: chunk.delta },
           });
           break;
-        case "tool-call":
+        }
+        case "tool-input-end": {
+          controller.enqueue({ type: "content_block_stop", index });
+          index += 1;
+          break;
+        }
+        case "tool-call": {
           controller.enqueue({
             type: "content_block_start",
-            index: index,
+            index,
             content_block: {
               type: "tool_use",
               id: chunk.toolCallId,
               name: chunk.toolName,
-              input: chunk.args,
+              input: (chunk as any).input,
             },
           });
-          index++;
+          controller.enqueue({ type: "content_block_stop", index });
+          index += 1;
           break;
-        case "error":
+        }
+        case "error": {
           controller.enqueue({
             type: "error",
             error: {
@@ -105,17 +121,29 @@ export function convertToAnthropicStream(
               message:
                 chunk.error instanceof Error
                   ? chunk.error.message
-                  : chunk.error as string,
+                  : (chunk.error as string),
             },
           });
           break;
-        default:
+        }
+        case "start":
+        case "abort":
+        case "raw":
+        case "source":
+        case "file":
+        case "reasoning-start":
+        case "reasoning-delta":
+        case "reasoning-end":
+          // ignore for Anthropic stream mapping
+          break;
+        default: {
           controller.error(new Error(`Unhandled chunk type: ${chunk.type}`));
+        }
       }
     },
   });
-  stream.pipeTo(transform.writable).catch((err) => {
-    console.log("WE GOT AN ERROR");
+  stream.pipeTo(transform.writable).catch(() => {
+    // swallow propagation; error already forwarded via 'error' chunk
   });
   return transform.readable;
 }

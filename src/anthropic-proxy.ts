@@ -1,4 +1,4 @@
-import type { ProviderV1 } from "@ai-sdk/provider";
+import type { ProviderV2 } from "@ai-sdk/provider";
 import { jsonSchema, streamText, type Tool } from "ai";
 import * as http from "http";
 import * as https from "https";
@@ -13,7 +13,7 @@ import { convertToLanguageModelMessage } from "./convert-to-language-model-promp
 import { providerizeSchema } from "./json-schema";
 
 export type CreateAnthropicProxyOptions = {
-  providers: Record<string, ProviderV1>;
+  providers: Record<string, ProviderV2>;
   port?: number;
 };
 
@@ -121,7 +121,7 @@ export const createAnthropicProxy = ({
         const tools = body.tools?.reduce((acc, tool) => {
           acc[tool.name] = {
             description: tool.name,
-            parameters: jsonSchema(
+            inputSchema: jsonSchema(
               providerizeSchema(providerName, tool.input_schema)
             ),
           };
@@ -133,7 +133,7 @@ export const createAnthropicProxy = ({
           system,
           tools,
           messages: coreMessages,
-          maxTokens: body.max_tokens,
+          maxOutputTokens: body.max_tokens,
           temperature: body.temperature,
 
           onFinish: ({ response, usage, finishReason }) => {
@@ -161,7 +161,7 @@ export const createAnthropicProxy = ({
 
             res.writeHead(200, { "Content-Type": "application/json" }).end(
               JSON.stringify({
-                id: message.id,
+                id: "msg_" + Date.now(),
                 type: "message",
                 role: promptMessage.role,
                 content: promptMessage.content,
@@ -169,8 +169,8 @@ export const createAnthropicProxy = ({
                 stop_reason: mapAnthropicStopReason(finishReason),
                 stop_sequence: null,
                 usage: {
-                  input_tokens: usage.promptTokens,
-                  output_tokens: usage.completionTokens,
+                  input_tokens: usage.inputTokens,
+                  output_tokens: usage.outputTokens,
                 },
               })
             );

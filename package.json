@@ -14,15 +14,16 @@
     "anyclaude": "./dist/main.js"
   },
   "devDependencies": {
-    "@ai-sdk/anthropic": "^1.2.12",
-    "@ai-sdk/azure": "^1.3.23",
-    "@ai-sdk/google": "^1.2.18",
-    "@ai-sdk/openai": "^1.3.22",
-    "@ai-sdk/xai": "^1.2.16",
+    "@ai-sdk/anthropic": "^2.0.1",
+    "@ai-sdk/azure": "^2.0.6",
+    "@ai-sdk/google": "^2.0.3",
+    "@ai-sdk/openai": "^2.0.6",
+    "@ai-sdk/xai": "^2.0.3",
     "@types/bun": "latest",
     "@types/json-schema": "^7.0.15",
-    "ai": "^4.3.16",
-    "json-schema": "^0.4.0"
+    "ai": "^5.0.8",
+    "json-schema": "^0.4.0",
+    "zod": "3.25.76"
   },
   "peerDependencies": {
     "typescript": "^5"
@@ -30,6 +31,6 @@
   "description": "Run Claude Code with OpenAI, Google, xAI, and others.",
   "license": "MIT",
   "scripts": {
-    "build": "bun build --target node --outfile dist/main.js ./src/main.ts --format cjs && sed -i '0,/^/s//#!\\/usr\\/bin\\/env node\\n/' ./dist/main.js"
+    "build": "bun build --target node --outfile dist/main.js ./src/main.ts --format cjs --external ai --external @ai-sdk/* --external zod && node -e \"const fs=require('fs');const p='dist/main.js';fs.writeFileSync(p,'#!/usr/bin/env node\\n'+fs.readFileSync(p,'utf8'))\" && chmod +x dist/main.js"
   }
 }
