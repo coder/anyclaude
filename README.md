@@ -14,7 +14,7 @@ Use Claude Code with OpenAI, Google, xAI, and other providers.
 
 ```sh
 # Use your favorite package manager (bun, pnpm, and npm are supported)
-$ pnpm install -g anyclaude 
+$ pnpm install -g anyclaude
 
 # anyclaude is a wrapper for the Claude CLI
 # `openai/`, `google/`, `xai/`, and `anthropic/` are supported
