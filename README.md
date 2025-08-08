@@ -18,10 +18,10 @@ $ pnpm install -g anyclaude
 
 # anyclaude is a wrapper for the Claude CLI
 # `openai/`, `google/`, `xai/`, and `anthropic/` are supported
-$ anyclaude --model openai/o3
+$ anyclaude --model openai/gpt-5-mini
 ```
 
-Switch models in the Claude UI with `/model openai/o3`.
+Switch models in the Claude UI with `/model openai/gpt-5-mini`.
 
 ## FAQ
 

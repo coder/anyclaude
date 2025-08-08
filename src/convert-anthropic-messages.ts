@@ -1,8 +1,8 @@
 import {
-  type LanguageModelV1CallWarning,
-  type LanguageModelV1Message,
-  type LanguageModelV1Prompt,
-  type LanguageModelV1ProviderMetadata,
+  type LanguageModelV2CallWarning,
+  type LanguageModelV2Message,
+  type LanguageModelV2Prompt,
+  type SharedV2ProviderOptions,
   UnsupportedFunctionalityError,
 } from "@ai-sdk/provider";
 import { convertUint8ArrayToBase64 } from "@ai-sdk/provider-utils";
@@ -12,18 +12,19 @@ import type {
   AnthropicMessage,
   AnthropicMessagesPrompt,
   AnthropicUserMessage,
+  AnthropicToolResultContent,
 } from "./anthropic-api-types";
-import type { CoreMessage, FilePart, TextPart, ToolCallPart } from "ai";
-import type { ReasoningUIPart } from "@ai-sdk/ui-utils";
+import type { ModelMessage, FilePart, TextPart, ToolCallPart } from "ai";
+import type { ReasoningUIPart } from 'ai';
 
 export function convertToAnthropicMessagesPrompt({
   prompt,
   sendReasoning,
   warnings,
 }: {
-  prompt: LanguageModelV1Prompt;
+  prompt: LanguageModelV2Prompt;
   sendReasoning: boolean;
-  warnings: LanguageModelV1CallWarning[];
+  warnings: LanguageModelV2CallWarning[];
 }): {
   prompt: AnthropicMessagesPrompt;
   betas: Set<string>;
@@ -35,9 +36,9 @@ export function convertToAnthropicMessagesPrompt({
   const messages: AnthropicMessagesPrompt["messages"] = [];
 
   function getCacheControl(
-    providerMetadata: LanguageModelV1ProviderMetadata | undefined
+    providerOptions: SharedV2ProviderOptions | undefined
   ): AnthropicCacheControl | undefined {
-    const anthropic = providerMetadata?.anthropic;
+    const anthropic = providerOptions?.anthropic;
 
     // allow both cacheControl and cache_control:
     const cacheControlValue =
@@ -62,10 +63,10 @@ export function convertToAnthropicMessagesPrompt({
           });
         }
 
-        system = block.messages.map(({ content, providerMetadata }) => ({
+        system = block.messages.map(({ content, providerOptions }) => ({
           type: "text",
           text: content,
-          cache_control: getCacheControl(providerMetadata),
+          cache_control: getCacheControl(providerOptions),
         }));
 
         break;
@@ -76,139 +77,119 @@ export function convertToAnthropicMessagesPrompt({
         const anthropicContent: AnthropicUserMessage["content"] = [];
 
         for (const message of block.messages) {
-          const { role, content } = message;
-          switch (role) {
-            case "user": {
-              for (let j = 0; j < content.length; j++) {
-                const part = content[j]!;
+          if (message.role === "user") {
+            const content = message.content;
+            for (let j = 0; j < content.length; j++) {
+              const part = content[j]!;
 
-                // cache control: first add cache control from part.
-                // for the last part of a message,
-                // check also if the message has cache control.
-                const isLastPart = j === content.length - 1;
+              const isLastPart = j === content.length - 1;
+              const cacheControl =
+                getCacheControl(part.providerOptions) ??
+                (isLastPart ? getCacheControl(message.providerOptions) : undefined);
 
-                const cacheControl =
-                  getCacheControl(part.providerMetadata) ??
-                  (isLastPart
-                    ? getCacheControl(message.providerMetadata)
-                    : undefined);
-
-                switch (part.type) {
-                  case "text": {
-                    anthropicContent.push({
-                      type: "text",
-                      text: part.text,
-                      cache_control: cacheControl,
-                    });
-                    break;
-                  }
-
-                  case "image": {
-                    anthropicContent.push({
-                      type: "image",
-                      source:
-                        part.image instanceof URL
-                          ? {
-                              type: "url",
-                              url: part.image.toString(),
-                            }
-                          : {
-                              type: "base64",
-                              media_type: part.mimeType ?? "image/jpeg",
-                              data: convertUint8ArrayToBase64(part.image),
-                            },
-                      cache_control: cacheControl,
-                    });
-
-                    break;
-                  }
-
-                  case "file": {
-                    if (part.mimeType !== "application/pdf") {
-                      throw new UnsupportedFunctionalityError({
-                        functionality: "Non-PDF files in user messages",
-                      });
-                    }
-
-                    betas.add("pdfs-2024-09-25");
-
-                    anthropicContent.push({
-                      type: "document",
-                      source:
-                        part.data instanceof URL
-                          ? {
-                              type: "url",
-                              url: part.data.toString(),
-                            }
-                          : {
-                              type: "base64",
-                              media_type: "application/pdf",
-                              data: part.data,
-                            },
-                      cache_control: cacheControl,
-                    });
-
-                    break;
-                  }
-                }
-              }
-
-              break;
-            }
-            case "tool": {
-              for (let i = 0; i < content.length; i++) {
-                const part = content[i]!;
-
-                // cache control: first add cache control from part.
-                // for the last part of a message,
-                // check also if the message has cache control.
-                const isLastPart = i === content.length - 1;
-
-                const cacheControl =
-                  getCacheControl(part.providerMetadata) ??
-                  (isLastPart
-                    ? getCacheControl(message.providerMetadata)
-                    : undefined);
-
-                const toolResultContent =
-                  part.content != null
-                    ? part.content.map((part) => {
-                        switch (part.type) {
-                          case "text":
-                            return {
-                              type: "text" as const,
-                              text: part.text,
-                              cache_control: undefined,
-                            };
-                          case "image":
-                            return {
-                              type: "image" as const,
-                              source: {
-                                type: "base64" as const,
-                                media_type: part.mimeType ?? "image/jpeg",
-                                data: part.data,
-                              },
-                              cache_control: undefined,
-                            };
-                        }
-                      })
-                    : JSON.stringify(part.result);
-
+              if (part.type === "text") {
                 anthropicContent.push({
-                  type: "tool_result",
-                  tool_use_id: part.toolCallId,
-                  content: toolResultContent,
-                  is_error: part.isError,
+                  type: "text",
+                  text: part.text,
                   cache_control: cacheControl,
                 });
+              } else if (part.type === "file") {
+                const mediaType = part.mediaType;
+                if (mediaType === "application/pdf") {
+                  betas.add("pdfs-2024-09-25");
+                  anthropicContent.push({
+                    type: "document",
+                    source:
+                      part.data instanceof URL
+                        ? { type: "url", url: part.data.toString() }
+                        : {
+                          type: "base64",
+                          media_type: "application/pdf",
+                          data: typeof part.data === "string"
+                            ? part.data
+                            : convertUint8ArrayToBase64(part.data),
+                        },
+                    cache_control: cacheControl,
+                  });
+                } else if (mediaType?.startsWith("image/")) {
+                  anthropicContent.push({
+                    type: "image",
+                    source:
+                      part.data instanceof URL
+                        ? { type: "url", url: part.data.toString() }
+                        : {
+                          type: "base64",
+                          media_type: mediaType ?? "image/jpeg",
+                          data: typeof part.data === "string"
+                            ? part.data
+                            : convertUint8ArrayToBase64(part.data),
+                        },
+                    cache_control: cacheControl,
+                  });
+                } else {
+                  throw new UnsupportedFunctionalityError({
+                    functionality: `Unsupported user file media type: ${mediaType}`,
+                  });
+                }
+              }
+            }
+          } else if (message.role === "tool") {
+            const content = message.content;
+            for (let i = 0; i < content.length; i++) {
+              const part = content[i]!;
+
+              const isLastPart = i === content.length - 1;
+              const cacheControl =
+                getCacheControl(part.providerOptions) ??
+                (isLastPart ? getCacheControl(message.providerOptions) : undefined);
+
+              // Map LanguageModelV2ToolResultPart.output to Anthropic tool_result content
+              let toolResultContent: AnthropicToolResultContent["content"];
+              let isError: boolean | undefined;
+
+              switch (part.output.type) {
+                case "text":
+                  toolResultContent = part.output.value;
+                  isError = false;
+                  break;
+                case "json":
+                  toolResultContent = JSON.stringify(part.output.value);
+                  isError = false;
+                  break;
+                case "error-text":
+                  toolResultContent = part.output.value;
+                  isError = true;
+                  break;
+                case "error-json":
+                  toolResultContent = JSON.stringify(part.output.value);
+                  isError = true;
+                  break;
+                case "content":
+                  toolResultContent = part.output.value.map((c) =>
+                    c.type === "text"
+                      ? { type: "text" as const, text: c.text, cache_control: undefined }
+                      : c.mediaType === "application/pdf"
+                        ? { type: "text" as const, text: "[document content omitted]", cache_control: undefined }
+                        : {
+                          type: "image" as const,
+                          source: { type: "base64" as const, media_type: c.mediaType, data: c.data },
+                          cache_control: undefined,
+                        }
+                  );
+                  isError = false;
+                  break;
               }
 
-              break;
+              anthropicContent.push({
+                type: "tool_result",
+                tool_use_id: part.toolCallId,
+                content: toolResultContent,
+                is_error: isError,
+                cache_control: cacheControl,
+              });
             }
-            default: {
-              const _exhaustiveCheck: never = role;
-              throw new Error(`Unsupported role: ${_exhaustiveCheck}`);
-            }
+          } else {
+            throw new Error(`Unsupported role in user block`);
           }
         }
 
@@ -234,9 +215,9 @@ export function convertToAnthropicMessagesPrompt({
             // for the last part of a message,
             // check also if the message has cache control.
             const cacheControl =
-              getCacheControl(part.providerMetadata) ??
+              getCacheControl(part.providerOptions) ??
               (isLastContentPart
-                ? getCacheControl(message.providerMetadata)
+                ? getCacheControl(message.providerOptions)
                 : undefined);
 
             switch (part.type) {
@@ -261,7 +242,6 @@ export function convertToAnthropicMessagesPrompt({
                   anthropicContent.push({
                     type: "thinking",
                     thinking: part.text,
-                    signature: part.signature!,
                     cache_control: cacheControl,
                   });
                 } else {
@@ -274,21 +254,12 @@ export function convertToAnthropicMessagesPrompt({
                 break;
               }
 
-              case "redacted-reasoning": {
-                anthropicContent.push({
-                  type: "redacted_thinking",
-                  data: part.data,
-                  cache_control: cacheControl,
-                });
-                break;
-              }
-
               case "tool-call": {
                 anthropicContent.push({
                   type: "tool_use",
                   id: part.toolCallId,
                   name: part.toolName,
-                  input: part.args,
+                  input: part.input,
                   cache_control: cacheControl,
                 });
                 break;
@@ -317,19 +288,19 @@ export function convertToAnthropicMessagesPrompt({
 
 type SystemBlock = {
   type: "system";
-  messages: Array<LanguageModelV1Message & { role: "system" }>;
+  messages: Array<LanguageModelV2Message & { role: "system" }>;
 };
 type AssistantBlock = {
   type: "assistant";
-  messages: Array<LanguageModelV1Message & { role: "assistant" }>;
+  messages: Array<LanguageModelV2Message & { role: "assistant" }>;
 };
 type UserBlock = {
   type: "user";
-  messages: Array<LanguageModelV1Message & { role: "user" | "tool" }>;
+  messages: Array<LanguageModelV2Message & { role: "user" | "tool" }>;
 };
 
 function groupIntoBlocks(
-  prompt: LanguageModelV1Prompt
+  prompt: LanguageModelV2Prompt
 ): Array<SystemBlock | AssistantBlock | UserBlock> {
   const blocks: Array<SystemBlock | AssistantBlock | UserBlock> = [];
   let currentBlock: SystemBlock | AssistantBlock | UserBlock | undefined =
@@ -387,7 +358,7 @@ function groupIntoBlocks(
 export function convertFromAnthropicMessages(
   messages: ReadonlyArray<AnthropicMessage>
 ) {
-  const result: CoreMessage[] = [];
+  const result: ModelMessage[] = [];
   let toolCalls: Record<string, ToolCallPart> = {};
 
   for (const message of messages) {
@@ -411,16 +382,16 @@ export function convertFromAnthropicMessages(
           case "tool_use": {
             messageContent.push({
               type: "tool-call",
-              args: content.input,
+              input: content.input,
               toolCallId: content.id,
               toolName: content.name,
             });
             toolCalls[content.id] = {
               type: "tool-call",
-              args: content.input,
+              input: content.input,
               toolCallId: content.id,
               toolName: content.name,
-            };
+            } as ToolCallPart;
             break;
           }
           case "tool_result": {
@@ -428,11 +399,41 @@ export function convertFromAnthropicMessages(
             if (!toolCall) {
               throw new Error("Tool call not found");
             }
+            // Map Anthropic tool_result content to LanguageModelV2ToolResultOutput
+            const output = ((): any => {
+              const c = content.content;
+              if (typeof c === "string") {
+                return { type: "text", value: c } as const;
+              }
+              // array of text/image contents
+              const mapped = c.map((p) => {
+                if (p.type === "text") {
+                  return { type: "text" as const, text: p.text };
+                }
+                // image content: prefer base64 source
+                if (p.type === "image") {
+                  if (p.source.type === "base64") {
+                    return {
+                      type: "media" as const,
+                      data: p.source.data,
+                      mediaType: p.source.media_type,
+                    };
+                  } else {
+                    // URL fallback: encode as text with URL
+                    return { type: "text" as const, text: p.source.url };
+                  }
+                }
+                // default to text
+                return { type: "text" as const, text: "" };
+              });
+              return { type: "content", value: mapped } as const;
+            })();
+
             result.push({
               role: "tool",
               content: [
                 {
-                  result: content.content,
+                  output,
                   toolCallId: content.tool_use_id,
                   toolName: toolCall.toolName,
                   type: "tool-result",
@@ -454,7 +455,7 @@ export function convertFromAnthropicMessages(
       result.push({
         role: message.role,
         content: messageContent,
-      } as CoreMessage);
+      } as ModelMessage);
     }
   }
   return result;

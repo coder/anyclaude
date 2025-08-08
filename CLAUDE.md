@@ -48,7 +48,7 @@ Test the proxy manually:
 PROXY_ONLY=true bun run src/main.ts
 
 # Test with a provider
-OPENAI_API_KEY=your-key bun run src/main.ts --model openai/gpt-4
+OPENAI_API_KEY=your-key bun run src/main.ts --model openai/gpt-5-mini
 ```
 
 ## Environment Variables
@@ -64,4 +64,3 @@ Required for each provider:
 Special modes:
 
 - `PROXY_ONLY=true`: Run proxy server without spawning Claude Code
-

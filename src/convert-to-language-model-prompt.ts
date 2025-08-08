@@ -1,12 +1,13 @@
 import type {
-  LanguageModelV1FilePart,
-  LanguageModelV1ImagePart,
-  LanguageModelV1Message,
-  LanguageModelV1TextPart,
+  LanguageModelV2FilePart,
+  LanguageModelV2Message,
+  LanguageModelV2TextPart,
+  LanguageModelV2ToolCallPart,
+  LanguageModelV2ReasoningPart,
 } from "@ai-sdk/provider";
 import {
   InvalidMessageRoleError,
-  type CoreMessage,
+  type ModelMessage,
   type DataContent,
   type FilePart,
   type ImagePart,
@@ -27,20 +28,19 @@ import { splitDataUrl } from "./split-data-url";
  *   available if the model does not support URLs, null otherwise.
  */
 export function convertToLanguageModelMessage(
-  message: CoreMessage,
+  message: ModelMessage,
   downloadedAssets: Record<
     string,
     { mimeType: string | undefined; data: Uint8Array }
   >
-): LanguageModelV1Message {
+): LanguageModelV2Message {
   const role = message.role;
   switch (role) {
     case "system": {
       return {
         role: "system",
         content: message.content,
-        providerMetadata:
-          message.providerOptions ?? message.experimental_providerMetadata,
+        providerOptions: message.providerOptions,
       };
     }
 
@@ -49,8 +49,7 @@ export function convertToLanguageModelMessage(
         return {
           role: "user",
           content: [{ type: "text", text: message.content }],
-          providerMetadata:
-            message.providerOptions ?? message.experimental_providerMetadata,
+          providerOptions: message.providerOptions,
         };
       }
 
@@ -60,8 +59,7 @@ export function convertToLanguageModelMessage(
           .map((part) => convertPartToLanguageModelPart(part, downloadedAssets))
           // remove empty text parts:
           .filter((part) => part.type !== "text" || part.text !== ""),
-        providerMetadata:
-          message.providerOptions ?? message.experimental_providerMetadata,
+        providerOptions: message.providerOptions,
       };
     }
 
@@ -70,70 +68,69 @@ export function convertToLanguageModelMessage(
         return {
           role: "assistant",
           content: [{ type: "text", text: message.content }],
-          providerMetadata:
-            message.providerOptions ?? message.experimental_providerMetadata,
+          providerOptions: message.providerOptions,
         };
+      }
+
+      const assistantParts: Array<
+        | LanguageModelV2TextPart
+        | LanguageModelV2FilePart
+        | LanguageModelV2ReasoningPart
+        | LanguageModelV2ToolCallPart
+      > = [];
+
+      for (const part of message.content) {
+        if (part.type === "text" && part.text === "") continue;
+        const providerOptions = part.providerOptions;
+        switch (part.type) {
+          case "file":
+            assistantParts.push({
+              type: "file",
+              data:
+                part.data instanceof URL
+                  ? part.data
+                  : convertDataContentToBase64String(part.data),
+              filename: part.filename,
+              mediaType: part.mediaType,
+              providerOptions,
+            });
+            break;
+          case "reasoning":
+            assistantParts.push({
+              type: "reasoning",
+              text: part.text,
+              providerOptions,
+            });
+            break;
+          case "text":
+            assistantParts.push({
+              type: "text",
+              text: part.text,
+              providerOptions,
+            });
+            break;
+          case "tool-call":
+            assistantParts.push({
+              type: "tool-call",
+              toolCallId: part.toolCallId,
+              toolName: part.toolName,
+              input: part.input,
+            });
+            break;
+          case "tool-result":
+            // ignore here; mapped in tool message case
+            break;
+          default: {
+            const _never: never = part;
+            void _never;
+          }
+        }
       }
 
       return {
         role: "assistant",
-        content: message.content
-          .filter(
-            // remove empty text parts:
-            (part) => part.type !== "text" || part.text !== ""
-          )
-          .map((part) => {
-            const providerOptions =
-              part.providerOptions ?? part.experimental_providerMetadata;
-
-            switch (part.type) {
-              case "file": {
-                return {
-                  type: "file",
-                  data:
-                    part.data instanceof URL
-                      ? part.data
-                      : convertDataContentToBase64String(part.data),
-                  filename: part.filename,
-                  mimeType: part.mimeType,
-                  providerMetadata: providerOptions,
-                };
-              }
-              case "reasoning": {
-                return {
-                  type: "reasoning",
-                  text: part.text,
-                  signature: part.signature,
-                  providerMetadata: providerOptions,
-                };
-              }
-              case "redacted-reasoning": {
-                return {
-                  type: "redacted-reasoning",
-                  data: part.data,
-                  providerMetadata: providerOptions,
-                };
-              }
-              case "text": {
-                return {
-                  type: "text" as const,
-                  text: part.text,
-                  providerMetadata: providerOptions,
-                };
-              }
-              case "tool-call": {
-                return {
-                  type: "tool-call" as const,
-                  toolCallId: part.toolCallId,
-                  toolName: part.toolName,
-                  args: part.args,
-                  providerMetadata: providerOptions,
-                };
-              }
-            }
-          }),
-        providerMetadata:
-          message.providerOptions ?? message.experimental_providerMetadata,
+        content: assistantParts,
+        providerOptions: message.providerOptions,
       };
     }
 
@@ -144,14 +141,10 @@ export function convertToLanguageModelMessage(
           type: "tool-result",
           toolCallId: part.toolCallId,
           toolName: part.toolName,
-          result: part.result,
-          content: part.experimental_content,
-          isError: part.isError,
-          providerMetadata:
-            part.providerOptions ?? part.experimental_providerMetadata,
+          providerOptions: part.providerOptions,
+          output: part.output,
         })),
-        providerMetadata:
-          message.providerOptions ?? message.experimental_providerMetadata,
+        providerOptions: message.providerOptions,
       };
     }
 
@@ -177,19 +170,17 @@ function convertPartToLanguageModelPart(
     { mimeType: string | undefined; data: Uint8Array }
   >
 ):
-  | LanguageModelV1TextPart
-  | LanguageModelV1ImagePart
-  | LanguageModelV1FilePart {
+  | LanguageModelV2TextPart
+  | LanguageModelV2FilePart {
   if (part.type === "text") {
     return {
       type: "text",
       text: part.text,
-      providerMetadata:
-        part.providerOptions ?? part.experimental_providerMetadata,
+      providerOptions: part.providerOptions,
     };
   }
 
-  let mimeType: string | undefined = part.mimeType;
+  let mediaType = part.mediaType;
   let data: DataContent | URL;
   let content: URL | ArrayBuffer | string;
   let normalizedData: Uint8Array | URL;
@@ -228,7 +219,7 @@ function convertPartToLanguageModelPart(
         throw new Error(`Invalid data URL format in part ${type}`);
       }
 
-      mimeType = dataUrlMimeType;
+      mediaType = dataUrlMimeType;
       normalizedData = convertDataContentToUint8Array(base64Content);
     } else {
       /**
@@ -239,7 +230,7 @@ function convertPartToLanguageModelPart(
       const downloadedFile = downloadedAssets[content.toString()];
       if (downloadedFile) {
         normalizedData = downloadedFile.data;
-        mimeType ??= downloadedFile.mimeType;
+        mediaType ??= downloadedFile.mimeType;
       } else {
         normalizedData = content;
       }
@@ -259,24 +250,23 @@ function convertPartToLanguageModelPart(
       // When detection fails, use provided mimetype.
 
       if (normalizedData instanceof Uint8Array) {
-        mimeType =
+        mediaType =
           detectMimeType({
             data: normalizedData,
             signatures: imageMimeTypeSignatures,
-          }) ?? mimeType;
+          }) ?? mediaType;
       }
       return {
-        type: "image",
-        image: normalizedData,
-        mimeType,
-        providerMetadata:
-          part.providerOptions ?? part.experimental_providerMetadata,
+        type: "file",
+        data: normalizedData,
+        mediaType: mediaType ?? "",
+        providerOptions: part.providerOptions,
       };
     }
 
     case "file": {
       // We should have a mimeType at this point, if not, throw an error.
-      if (mimeType == null) {
+      if (mediaType == null) {
         throw new Error(`Mime type is missing for file part`);
       }
 
@@ -287,9 +277,8 @@ function convertPartToLanguageModelPart(
             ? convertDataContentToBase64String(normalizedData)
             : normalizedData,
         filename: part.filename,
-        mimeType,
-        providerMetadata:
-          part.providerOptions ?? part.experimental_providerMetadata,
+        mediaType: mediaType,
+        providerOptions: part.providerOptions,
       };
     }
   }
