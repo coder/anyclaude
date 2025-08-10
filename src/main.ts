@@ -12,17 +12,33 @@ import {
 } from "./anthropic-proxy";
 import yargsParser from "yargs-parser";
 
+const FLAGS = {
+  reasoningEffort: {
+    long: "reasoning-effort",
+    short: "e",
+    values: ["minimal", "low", "medium", "high"] as const,
+  },
+  serviceTier: {
+    long: "service-tier",
+    short: "t",
+    values: ["flex", "priority"] as const,
+  },
+} as const;
+
 function parseAnyclaudeFlags(rawArgs: string[]) {
   const parsed = yargsParser(rawArgs, {
     configuration: {
-      "unknown-options-as-args": true,
+      "unknown-options-as-args": false,
       "halt-at-non-option": false,
       "camel-case-expansion": false,
       "dot-notation": false,
     },
   });
-  const reasoningEffort = (parsed["reasoning-effort"] ?? parsed.e) as string | undefined;
-  const serviceTier = parsed["service-tier"] as string | undefined;
+  const reasoningEffort = (parsed[FLAGS.reasoningEffort.long] ??
+    parsed[FLAGS.reasoningEffort.short]) as string | undefined;
+  const serviceTier = (parsed[FLAGS.serviceTier.long] ??
+    parsed[FLAGS.serviceTier.short]) as string | undefined;
+  const specs = Object.values(FLAGS);
   const filteredArgs: string[] = [];
   let helpRequested = false;
   let i = 0;
@@ -41,14 +57,22 @@ function parseAnyclaudeFlags(rawArgs: string[]) {
       continue;
     }
     if (arg === "-h" || arg === "--help") helpRequested = true;
-    if (arg === "--reasoning-effort" || arg === "--service-tier" || arg === "-e") {
-      i += 2;
-      continue;
+    let matched = false;
+    for (const spec of specs) {
+      const long = `--${spec.long}`;
+      const short = `-${spec.short}`;
+      if (arg === long || arg === short) {
+        i += 2;
+        matched = true;
+        break;
+      }
+      if (arg.startsWith(long + "=") || arg.startsWith(short + "=")) {
+        i += 1;
+        matched = true;
+        break;
+      }
     }
-    if (arg.startsWith("--reasoning-effort=") || arg.startsWith("--service-tier=") || arg.startsWith("-e=")) {
-      i += 1;
-      continue;
-    }
+    if (matched) continue;
     filteredArgs.push(arg);
     i++;
   }
@@ -56,20 +80,21 @@ function parseAnyclaudeFlags(rawArgs: string[]) {
 }
 
 const rawArgs = process.argv.slice(2);
-const { reasoningEffort, serviceTier, filteredArgs, helpRequested } = parseAnyclaudeFlags(rawArgs);
+const { reasoningEffort, serviceTier, filteredArgs, helpRequested } =
+  parseAnyclaudeFlags(rawArgs);
 
-if (reasoningEffort) {
-  const allowed = new Set(["minimal", "low", "medium", "high"]);
-  if (!allowed.has(reasoningEffort)) {
-    console.error("Invalid reasoning effort. Use minimal|low|medium|high.");
-    process.exit(1);
-  }
-}
-if (serviceTier) {
-  const allowed = new Set(["flex", "priority"]);
-  if (!allowed.has(serviceTier)) {
-    console.error("Invalid service tier. Use flex|priority.");
-    process.exit(1);
+for (const [key, spec] of Object.entries(FLAGS) as Array<
+  [keyof typeof FLAGS, (typeof FLAGS)[keyof typeof FLAGS]]
+>) {
+  const val = (key === "reasoningEffort" ? reasoningEffort : serviceTier) as
+    | string
+    | undefined;
+  if (val) {
+    const allowed = new Set(spec.values as readonly string[]);
+    if (!allowed.has(val as any)) {
+      console.error(`Invalid ${spec.long}. Use ${spec.values.join("|")}.`);
+      process.exit(1);
+    }
   }
 }
 
@@ -123,9 +148,14 @@ const proxyURL = createAnthropicProxy({
 
 const params = [
   `proxy=${proxyURL}`,
-  reasoningEffort ? `reasoning-effort=${reasoningEffort}` : undefined,
-  serviceTier ? `service-tier=${serviceTier}` : undefined,
-].filter(Boolean).join(" ");
+  ...(
+    Object.entries({ reasoningEffort, serviceTier }) as Array<
+      [keyof typeof FLAGS, string | undefined]
+    >
+  ).map(([k, v]) => (v ? `${FLAGS[k].long}=${v}` : undefined)),
+]
+  .filter(Boolean)
+  .join(" ");
 console.log(`[anyclaude] ${params}`);
 
 if (process.env.PROXY_ONLY === "true") {
@@ -142,11 +172,11 @@ if (process.env.PROXY_ONLY === "true") {
   proc.on("exit", (code) => {
     if (helpRequested) {
       console.log("\nanyclaude flags:");
-      console.log("  --model <provider>/<model>      e.g. openai/o3");
-      console.log("  --reasoning-effort, -e <minimal|low|medium|high>");
-      console.log("  --service-tier <flex|priority>");
-      console.log("\nEnvironment variables:");
-      console.log("  ANYCLAUDE_DEBUG=1|2             Enable debug logging");
+      console.log("  --model <provider>/<model>      e.g. openai/gpt-5");
+      for (const spec of Object.values(FLAGS)) {
+        const vals = spec.values.join("|");
+        console.log(`  --${spec.long}, -${spec.short} <${vals}>`);
+      }
     }
 
     process.exit(code);
