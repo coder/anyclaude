@@ -18,6 +18,16 @@ const providers: CreateAnthropicProxyOptions["providers"] = {
   openai: createOpenAI({
     apiKey: process.env.OPENAI_API_KEY,
     baseURL: process.env.OPENAI_API_URL,
+    fetch: (async (url, init) => {
+      if (init?.body && typeof init.body === "string") {
+        const body = JSON.parse(init.body);
+        const maxTokens = body.max_tokens;
+        delete body["max_tokens"];
+        body.max_completion_tokens = maxTokens;
+        init.body = JSON.stringify(body);
+      }
+      return globalThis.fetch(url, init);
+    }) as typeof fetch,
   }),
   azure: createAzure({
     apiKey: process.env.AZURE_API_KEY,
