@@ -37,8 +37,6 @@
   },
   "dependencies": {
     "@types/yargs-parser": "^21.0.3",
-    "i": "^0.3.7",
-    "mri": "^1.2.0",
     "yargs-parser": "^22.0.0"
   }
 }
