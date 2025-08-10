@@ -34,6 +34,9 @@ bun install
 # Build the project (creates dist/main.js with shebang)
 bun run build
 
+# Run the built binary
+bun run ./dist/main.js
+
 # The build command:
 # 1. Compiles TypeScript to CommonJS for Node.js compatibility
 # 2. Adds Node shebang for CLI execution
@@ -64,3 +67,6 @@ Required for each provider:
 Special modes:
 
 - `PROXY_ONLY=true`: Run proxy server without spawning Claude Code
+- `ANYCLAUDE_DEBUG=1|2`: Enable debug logging (1=basic, 2=verbose)
+
+- OpenAI's gpt-5 was released in August 2025
