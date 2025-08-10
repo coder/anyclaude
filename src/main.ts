@@ -121,6 +121,13 @@ const proxyURL = createAnthropicProxy({
   providers,
 });
 
+const params = [
+  `proxy=${proxyURL}`,
+  reasoningEffort ? `reasoning-effort=${reasoningEffort}` : undefined,
+  serviceTier ? `service-tier=${serviceTier}` : undefined,
+].filter(Boolean).join(" ");
+console.log(`[anyclaude] ${params}`);
+
 if (process.env.PROXY_ONLY === "true") {
   console.log("Proxy only mode: " + proxyURL);
 } else {
