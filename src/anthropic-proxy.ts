@@ -2,9 +2,6 @@ import type { ProviderV2 } from "@ai-sdk/provider";
 import { jsonSchema, streamText, type Tool } from "ai";
 import * as http from "http";
 import * as https from "https";
-import * as fs from "fs";
-import * as path from "path";
-import * as os from "os";
 import type { AnthropicMessagesRequest } from "./anthropic-api-types";
 import { mapAnthropicStopReason } from "./anthropic-api-types";
 import {
@@ -14,59 +11,19 @@ import {
 import { convertToAnthropicStream } from "./convert-to-anthropic-stream";
 import { convertToLanguageModelMessage } from "./convert-to-language-model-prompt";
 import { providerizeSchema } from "./json-schema";
+import { 
+  writeDebugToTempFile, 
+  logDebugError, 
+  displayDebugStartup,
+  isDebugEnabled,
+  queueErrorMessage
+} from "./debug";
+import { filterDuplicateToolCalls } from "./filter-duplicates";
 
 export type CreateAnthropicProxyOptions = {
   providers: Record<string, ProviderV2>;
   port?: number;
 };
-
-// Helper function to write debug info to a temp file
-function writeDebugToTempFile(
-  statusCode: number,
-  request: {
-    method?: string;
-    url?: string;
-    headers: any;
-    body: any;
-  },
-  response?: {
-    statusCode: number;
-    headers: any;
-    body: string;
-  }
-): string | null {
-  // Log 4xx errors (except 429) when ANYCLAUDE_DEBUG is set
-  const debugEnabled = process.env.ANYCLAUDE_DEBUG;
-  
-  if (!debugEnabled || statusCode === 429 || statusCode < 400 || statusCode >= 500) {
-    return null;
-  }
-
-  try {
-    const tmpDir = os.tmpdir();
-    const timestamp = Date.now();
-    const randomId = Math.random().toString(36).substring(2, 8);
-    const filename = `anyclaude-debug-${timestamp}-${randomId}.json`;
-    const filepath = path.join(tmpDir, filename);
-
-    const debugData = {
-      timestamp: new Date().toISOString(),
-      request: {
-        method: request.method,
-        url: request.url,
-        headers: request.headers,
-        body: request.body,
-      },
-      response: response || null,
-    };
-
-    fs.writeFileSync(filepath, JSON.stringify(debugData, null, 2), 'utf8');
-    return filepath;
-  } catch (error) {
-    console.error("[ANYCLAUDE DEBUG] Failed to write debug file:", error);
-    return null;
-  }
-}
 
 // createAnthropicProxy creates a proxy server that accepts
 // Anthropic Message API requests and proxies them through
@@ -76,6 +33,9 @@ export const createAnthropicProxy = ({
   port,
   providers,
 }: CreateAnthropicProxyOptions): string => {
+  // Log debug status on startup
+  displayDebugStartup();
+  
   const proxy = http
     .createServer((req, res) => {
       if (!req.url) {
@@ -144,7 +104,7 @@ export const createAnthropicProxy = ({
                 );
 
                 if (debugFile) {
-                  console.error(`[ANYCLAUDE DEBUG] HTTP ${statusCode} error - Debug info written to: ${debugFile}`);
+                  logDebugError("HTTP", statusCode, debugFile);
                 }
               }
             });
@@ -216,7 +176,10 @@ export const createAnthropicProxy = ({
           throw new Error(`Unknown provider: ${providerName}`);
         }
 
-        const coreMessages = convertFromAnthropicMessages(body.messages);
+        // Filter out duplicate tool calls and their corresponding results
+        const filteredMessages = filterDuplicateToolCalls(body.messages);
+        
+        const coreMessages = convertFromAnthropicMessages(filteredMessages);
         let system: string | undefined;
         if (body.system && body.system.length > 0) {
           system = body.system.map((s) => s.text).join("\n");
@@ -282,14 +245,20 @@ export const createAnthropicProxy = ({
           onError: ({ error }) => {
             const statusCode = 400; // Provider errors are returned as 400
             
-            // Write debug info to temp file
+            // Write comprehensive debug info to temp file
             const debugFile = writeDebugToTempFile(
               statusCode,
               {
                 method: "POST",
                 url: req.url,
                 headers: req.headers,
-                body: body,
+                body: { 
+                  ...body, 
+                  messages: filteredMessages,
+                  _originalMessages: body.messages,
+                  _originalMessageCount: body.messages.length,
+                  _filteredMessageCount: filteredMessages.length
+                },
               },
               {
                 statusCode,
@@ -300,13 +269,25 @@ export const createAnthropicProxy = ({
                   error: error instanceof Error ? {
                     message: error.message,
                     stack: error.stack,
+                    name: error.name,
                   } : error,
+                  _debugInfo: {
+                    originalRequestSize: JSON.stringify(body).length,
+                    filteredRequestSize: JSON.stringify({ ...body, messages: filteredMessages }).length,
+                    toolCount: body.tools?.length || 0,
+                    systemPromptLength: body.system?.reduce((acc, s) => acc + s.text.length, 0) || 0,
+                    filteringSummary: {
+                      originalMessages: body.messages.length,
+                      filteredMessages: filteredMessages.length,
+                      messagesRemoved: body.messages.length - filteredMessages.length
+                    }
+                  }
                 }),
               }
             );
 
             if (debugFile) {
-              console.error(`[ANYCLAUDE DEBUG] Provider error (${providerName}/${model}) - Debug info written to: ${debugFile}`);
+              logDebugError("Provider", statusCode, debugFile, { provider: providerName, model });
             }
 
             res
@@ -332,21 +313,41 @@ export const createAnthropicProxy = ({
           // We already send the error to the client.
         });
 
+        // Collect all stream chunks for debugging if enabled
+        const streamChunks: any[] = [];
+        const startTime = Date.now();
+
         await convertToAnthropicStream(stream.fullStream).pipeTo(
           new WritableStream({
             write(chunk) {
-              // Check for streaming errors and log them
-              if (chunk.type === "error" && process.env.ANYCLAUDE_DEBUG) {
-                console.error(`[ANYCLAUDE DEBUG] Streaming error for ${providerName}/${model}`);
+              // Collect chunks for debug dump
+              if (isDebugEnabled()) {
+                streamChunks.push({
+                  timestamp: Date.now() - startTime,
+                  chunk: chunk
+                });
+              }
+              
+              // Check for streaming errors and log them (but don't interrupt the stream)
+              if (chunk.type === "error") {
+                // Always try to log errors when debug is enabled
+                if (isDebugEnabled()) {
+                  console.error(`[ANYCLAUDE DEBUG] Streaming error chunk detected for ${providerName}/${model} at ${Date.now() - startTime}ms:`, JSON.stringify(chunk).substring(0, 200));
+                }
                 
-                // Write debug info to temp file for streaming errors
+                // Write comprehensive debug info including full stream dump
                 const debugFile = writeDebugToTempFile(
                   400, // Streaming errors are sent as 400
                   {
                     method: "POST",
                     url: req.url,
                     headers: req.headers,
-                    body: body,
+                    body: { 
+                      ...body, 
+                      messages: filteredMessages,
+                      _originalMessageCount: body.messages.length,
+                      _filteredMessageCount: filteredMessages.length
+                    },
                   },
                   {
                     statusCode: 400,
@@ -355,20 +356,36 @@ export const createAnthropicProxy = ({
                       provider: providerName,
                       model: model,
                       streamingError: chunk,
+                      fullChunk: JSON.stringify(chunk),
+                      streamDuration: Date.now() - startTime,
+                      streamChunkCount: streamChunks.length,
+                      allStreamChunks: streamChunks,
+                      _debugInfo: {
+                        originalRequestSize: JSON.stringify(body).length,
+                        filteredRequestSize: JSON.stringify({ ...body, messages: filteredMessages }).length,
+                        toolCount: body.tools?.length || 0,
+                        systemPromptLength: body.system?.reduce((acc, s) => acc + s.text.length, 0) || 0
+                      }
                     }),
                   }
                 );
 
                 if (debugFile) {
-                  console.error(`[ANYCLAUDE DEBUG] Streaming error (${providerName}/${model}) - Debug info written to: ${debugFile}`);
+                  logDebugError("Streaming", 400, debugFile, { provider: providerName, model });
+                } else if (isDebugEnabled()) {
+                  queueErrorMessage(`Failed to write debug file for streaming error`);
                 }
               }
               
+              // Write all chunks (including errors) to the stream - matching original behavior
               res.write(
                 `event: ${chunk.type}\ndata: ${JSON.stringify(chunk)}\n\n`
               );
             },
             close() {
+              if (isDebugEnabled() && streamChunks.length > 0) {
+                console.error(`[ANYCLAUDE DEBUG] Stream completed for ${providerName}/${model}: ${streamChunks.length} chunks in ${Date.now() - startTime}ms`);
+              }
               res.end();
             },
           })
