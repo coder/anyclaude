@@ -23,6 +23,22 @@ $ anyclaude --model openai/gpt-5-mini
 
 Switch models in the Claude UI with `/model openai/gpt-5-mini`.
 
+### GPT-5 Support
+
+Use --reasoning-effort (alias: -e) to control OpenAI reasoning.effort. Allowed values: minimal, low, medium, high.
+
+```sh
+anyclaude --model openai/gpt-5-mini -e high
+```
+
+Use --service-tier (alias: -t) to control OpenAI service tier. Allowed values: flex, priority.
+
+```sh
+anyclaude --model openai/gpt-5-mini -t priority
+```
+
+Note these flags may be extended to other providers in the future.
+
 ## FAQ
 
 ### What providers are supported?
