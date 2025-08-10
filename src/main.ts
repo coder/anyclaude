@@ -76,7 +76,8 @@ const providers: CreateAnthropicProxyOptions["providers"] = {
         const body = JSON.parse(init.body);
         const maxTokens = body.max_tokens;
         delete body["max_tokens"];
-        if (typeof maxTokens !== "undefined") body.max_completion_tokens = maxTokens;
+        if (typeof maxTokens !== "undefined")
+          body.max_completion_tokens = maxTokens;
         if (reasoningEffort) body.reasoning = { effort: reasoningEffort };
         if (serviceTier) body.service_tier = serviceTier;
         init.body = JSON.stringify(body);
@@ -112,7 +113,7 @@ const proxyURL = createAnthropicProxy({
 });
 
 if (process.env.PROXY_ONLY === "true") {
-  console.log("Proxy only mode: "+proxyURL);
+  console.log("Proxy only mode: " + proxyURL);
 } else {
   const claudeArgs = filteredArgs;
   const proc = spawn("claude", claudeArgs, {
@@ -124,13 +125,14 @@ if (process.env.PROXY_ONLY === "true") {
   });
   proc.on("exit", (code) => {
     if (claudeArgs[0] === "-h" || claudeArgs[0] === "--help") {
-      console.log("\nCustom Models:")
+      console.log("\nanyclaude flags:");
       console.log("  --model <provider>/<model>      e.g. openai/o3");
       console.log("  --reasoning-effort, -e <minimal|low|medium|high>");
       console.log("  --service-tier <flex|priority>");
+      console.log("\nEnvironment variables:");
+      console.log("  ANYCLAUDE_DEBUG=1|2             Enable debug logging");
     }
 
     process.exit(code);
   });
 }
-

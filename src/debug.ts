@@ -163,3 +163,24 @@ export function isDebugEnabled(): boolean {
 export function isVerboseDebugEnabled(): boolean {
   return getDebugLevel() >= 2;
 }
+
+/**
+ * Log a debug message at the specified level
+ * @param level - Minimum debug level required to show this message (1 or 2)
+ * @param message - The message to log
+ * @param data - Optional data to append to the message
+ */
+export function debug(level: 1 | 2, message: string, data?: any): void {
+  if (getDebugLevel() >= level) {
+    const prefix = '[ANYCLAUDE DEBUG]';
+    if (data !== undefined) {
+      // For objects/errors, stringify with a length limit
+      const dataStr = typeof data === 'object' ? 
+        JSON.stringify(data).substring(0, 200) : 
+        String(data);
+      console.error(`${prefix} ${message}`, dataStr);
+    } else {
+      console.error(`${prefix} ${message}`);
+    }
+  }
+}

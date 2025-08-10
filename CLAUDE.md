@@ -64,5 +64,6 @@ Required for each provider:
 Special modes:
 
 - `PROXY_ONLY=true`: Run proxy server without spawning Claude Code
+- `ANYCLAUDE_DEBUG=1|2`: Enable debug logging (1=basic, 2=verbose)
 
 - OpenAI's gpt-5 was released in August 2025

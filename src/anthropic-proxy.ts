@@ -17,9 +17,9 @@ import {
   displayDebugStartup,
   isDebugEnabled,
   isVerboseDebugEnabled,
-  queueErrorMessage
+  queueErrorMessage,
+  debug
 } from "./debug";
-import { filterDuplicateToolCalls } from "./filter-duplicates";
 
 export type CreateAnthropicProxyOptions = {
   providers: Record<string, ProviderV2>;
@@ -177,10 +177,7 @@ export const createAnthropicProxy = ({
           throw new Error(`Unknown provider: ${providerName}`);
         }
 
-        // Filter out duplicate tool calls and their corresponding results
-        const filteredMessages = filterDuplicateToolCalls(body.messages);
-        
-        const coreMessages = convertFromAnthropicMessages(filteredMessages);
+        const coreMessages = convertFromAnthropicMessages(body.messages);
         let system: string | undefined;
         if (body.system && body.system.length > 0) {
           system = body.system.map((s) => s.text).join("\n");
@@ -244,7 +241,26 @@ export const createAnthropicProxy = ({
             );
           },
           onError: ({ error }) => {
-            const statusCode = 400; // Provider errors are returned as 400
+            let statusCode = 400; // Provider errors are returned as 400
+            let transformedError = error;
+            
+            // Check if this is an OpenAI server error that we should transform
+            const isOpenAIServerError = providerName === 'openai' && 
+              error && typeof error === 'object' && 
+              'error' in error && error.error?.code === 'server_error';
+            
+            if (isOpenAIServerError) {
+              debug(1, `OpenAI server error detected in onError for ${model}. Transforming to 429 to trigger retry...`);
+              // Transform to rate limit error to trigger retry
+              statusCode = 429;
+              transformedError = {
+                type: "error",
+                error: {
+                  type: "rate_limit_error", 
+                  message: "OpenAI server temporarily unavailable. Please retry your request."
+                }
+              };
+            }
             
             // Write comprehensive debug info to temp file
             const debugFile = writeDebugToTempFile(
@@ -253,13 +269,7 @@ export const createAnthropicProxy = ({
                 method: "POST",
                 url: req.url,
                 headers: req.headers,
-                body: { 
-                  ...body, 
-                  messages: filteredMessages,
-                  _originalMessages: body.messages,
-                  _originalMessageCount: body.messages.length,
-                  _filteredMessageCount: filteredMessages.length
-                },
+                body: body,
               },
               {
                 statusCode,
@@ -267,21 +277,22 @@ export const createAnthropicProxy = ({
                 body: JSON.stringify({
                   provider: providerName,
                   model: model,
-                  error: error instanceof Error ? {
+                  originalError: error instanceof Error ? {
                     message: error.message,
                     stack: error.stack,
                     name: error.name,
                   } : error,
+                  error: transformedError instanceof Error ? {
+                    message: transformedError.message,
+                    stack: transformedError.stack,
+                    name: transformedError.name,
+                  } : transformedError,
+                  wasTransformed: isOpenAIServerError,
                   _debugInfo: {
-                    originalRequestSize: JSON.stringify(body).length,
-                    filteredRequestSize: JSON.stringify({ ...body, messages: filteredMessages }).length,
+                    requestSize: JSON.stringify(body).length,
                     toolCount: body.tools?.length || 0,
                     systemPromptLength: body.system?.reduce((acc, s) => acc + s.text.length, 0) || 0,
-                    filteringSummary: {
-                      originalMessages: body.messages.length,
-                      filteredMessages: filteredMessages.length,
-                      messagesRemoved: body.messages.length - filteredMessages.length
-                    }
+                    messageCount: body.messages.length
                   }
                 }),
               }
@@ -292,13 +303,13 @@ export const createAnthropicProxy = ({
             }
 
             res
-              .writeHead(400, {
+              .writeHead(statusCode, {
                 "Content-Type": "application/json",
               })
               .end(
                 JSON.stringify({
                   type: "error",
-                  error: error instanceof Error ? error.message : error,
+                  error: transformedError instanceof Error ? transformedError.message : transformedError,
                 })
               );
           },
@@ -331,9 +342,32 @@ export const createAnthropicProxy = ({
               
               // Check for streaming errors and log them (but don't interrupt the stream)
               if (chunk.type === "error") {
-                // Always try to log errors when debug is enabled
-                if (isDebugEnabled()) {
-                  console.error(`[ANYCLAUDE DEBUG] Streaming error chunk detected for ${providerName}/${model} at ${Date.now() - startTime}ms:`, JSON.stringify(chunk).substring(0, 200));
+                // Store original error for debugging
+                const originalError = { ...chunk };
+                
+                // Check if this is an OpenAI server error (any sequence)
+                const isOpenAIServerError = providerName === 'openai' && 
+                  chunk.error?.code === 'server_error';
+                
+                if (isOpenAIServerError) {
+                  debug(1, `OpenAI server error detected for ${model} at sequence ${chunk.sequence_number}. This is a known transient issue with OpenAI.`);
+                  debug(1, `Transforming to 429 rate limit error to trigger Claude Code's automatic retry...`);
+                  
+                  // Transform OpenAI server errors to 429 rate limit errors
+                  // This should trigger Claude Code's built-in retry mechanism
+                  chunk = {
+                    type: "error",
+                    sequence_number: chunk.sequence_number,
+                    error: {
+                      type: "rate_limit_error",
+                      code: "rate_limit_error",
+                      message: "OpenAI server temporarily unavailable. Please retry your request.",
+                      param: null
+                    }
+                  };
+                } else {
+                  // Log other errors normally
+                  debug(1, `Streaming error chunk detected for ${providerName}/${model} at ${Date.now() - startTime}ms:`, chunk);
                 }
                 
                 // Write comprehensive debug info including full stream dump
@@ -343,12 +377,7 @@ export const createAnthropicProxy = ({
                     method: "POST",
                     url: req.url,
                     headers: req.headers,
-                    body: { 
-                      ...body, 
-                      messages: filteredMessages,
-                      _originalMessageCount: body.messages.length,
-                      _filteredMessageCount: filteredMessages.length
-                    },
+                    body: body,
                   },
                   {
                     statusCode: 400,
@@ -356,16 +385,18 @@ export const createAnthropicProxy = ({
                     body: JSON.stringify({
                       provider: providerName,
                       model: model,
-                      streamingError: chunk,
-                      fullChunk: JSON.stringify(chunk),
+                      streamingError: originalError,
+                      transformedError: isOpenAIServerError ? chunk : null,
+                      wasTransformed: isOpenAIServerError,
+                      fullChunk: JSON.stringify(originalError),
                       streamDuration: Date.now() - startTime,
                       streamChunkCount: streamChunks.length,
                       allStreamChunks: streamChunks,
                       _debugInfo: {
-                        originalRequestSize: JSON.stringify(body).length,
-                        filteredRequestSize: JSON.stringify({ ...body, messages: filteredMessages }).length,
+                        requestSize: JSON.stringify(body).length,
                         toolCount: body.tools?.length || 0,
-                        systemPromptLength: body.system?.reduce((acc, s) => acc + s.text.length, 0) || 0
+                        systemPromptLength: body.system?.reduce((acc, s) => acc + s.text.length, 0) || 0,
+                        messageCount: body.messages.length
                       }
                     }),
                   }
@@ -384,8 +415,8 @@ export const createAnthropicProxy = ({
               );
             },
             close() {
-              if (isVerboseDebugEnabled() && streamChunks.length > 0) {
-                console.error(`[ANYCLAUDE DEBUG] Stream completed for ${providerName}/${model}: ${streamChunks.length} chunks in ${Date.now() - startTime}ms`);
+              if (streamChunks.length > 0) {
+                debug(2, `Stream completed for ${providerName}/${model}: ${streamChunks.length} chunks in ${Date.now() - startTime}ms`);
               }
               res.end();
             },
