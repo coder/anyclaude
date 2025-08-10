@@ -10,45 +10,54 @@ import {
   createAnthropicProxy,
   type CreateAnthropicProxyOptions,
 } from "./anthropic-proxy";
+import yargsParser from "yargs-parser";
+
+function parseAnyclaudeFlags(rawArgs: string[]) {
+  const parsed = yargsParser(rawArgs, {
+    configuration: {
+      "unknown-options-as-args": true,
+      "halt-at-non-option": false,
+      "camel-case-expansion": false,
+      "dot-notation": false,
+    },
+  });
+  const reasoningEffort = (parsed["reasoning-effort"] ?? parsed.e) as string | undefined;
+  const serviceTier = parsed["service-tier"] as string | undefined;
+  const filteredArgs: string[] = [];
+  let helpRequested = false;
+  let i = 0;
+  let passthrough = false;
+  while (i < rawArgs.length) {
+    const arg = rawArgs[i]!;
+    if (passthrough) {
+      filteredArgs.push(arg);
+      i++;
+      continue;
+    }
+    if (arg === "--") {
+      passthrough = true;
+      filteredArgs.push(arg);
+      i++;
+      continue;
+    }
+    if (arg === "-h" || arg === "--help") helpRequested = true;
+    if (arg === "--reasoning-effort" || arg === "--service-tier" || arg === "-e") {
+      i += 2;
+      continue;
+    }
+    if (arg.startsWith("--reasoning-effort=") || arg.startsWith("--service-tier=") || arg.startsWith("-e=")) {
+      i += 1;
+      continue;
+    }
+    filteredArgs.push(arg);
+    i++;
+  }
+  return { reasoningEffort, serviceTier, filteredArgs, helpRequested };
+}
 
 const rawArgs = process.argv.slice(2);
-let reasoningEffort: string | undefined;
-let serviceTier: string | undefined;
-const filteredArgs: string[] = [];
-for (let i = 0; i < rawArgs.length; i++) {
-  const arg = rawArgs[i]!;
-  if (arg === "--reasoning-effort" || arg === "-e") {
-    const val = rawArgs[i + 1];
-    if (!val) {
-      console.error("Missing value for --reasoning-effort");
-      process.exit(1);
-    }
-    reasoningEffort = val;
-    i++;
-    continue;
-  }
-  if (arg === "--service-tier") {
-    const val = rawArgs[i + 1];
-    if (!val) {
-      console.error("Missing value for --service-tier");
-      process.exit(1);
-    }
-    serviceTier = val;
-    i++;
-    continue;
-  }
-  const m = arg.match(/^--reasoning-effort=(.+)$/);
-  if (m) {
-    reasoningEffort = m[1]!;
-    continue;
-  }
-  const m2 = arg.match(/^--service-tier=(.+)$/);
-  if (m2) {
-    serviceTier = m2[1]!;
-    continue;
-  }
-  filteredArgs.push(arg);
-}
+const { reasoningEffort, serviceTier, filteredArgs, helpRequested } = parseAnyclaudeFlags(rawArgs);
+
 if (reasoningEffort) {
   const allowed = new Set(["minimal", "low", "medium", "high"]);
   if (!allowed.has(reasoningEffort)) {
@@ -124,7 +133,7 @@ if (process.env.PROXY_ONLY === "true") {
     stdio: "inherit",
   });
   proc.on("exit", (code) => {
-    if (claudeArgs[0] === "-h" || claudeArgs[0] === "--help") {
+    if (helpRequested) {
       console.log("\nanyclaude flags:");
       console.log("  --model <provider>/<model>      e.g. openai/o3");
       console.log("  --reasoning-effort, -e <minimal|low|medium|high>");

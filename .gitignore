@@ -36,6 +36,3 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 .direnv
 .envrc
 .claude
-
-# debug files
-OPENAI_ERROR_SUMMARY.md

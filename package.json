@@ -31,6 +31,12 @@
   "description": "Run Claude Code with OpenAI, Google, xAI, and others.",
   "license": "MIT",
   "scripts": {
-    "build": "bun build --target node --outfile dist/main.js ./src/main.ts --format cjs --external ai --external @ai-sdk/* --external zod && node -e \"const fs=require('fs');const p='dist/main.js';fs.writeFileSync(p,'#!/usr/bin/env node\\n'+fs.readFileSync(p,'utf8'))\" && chmod +x dist/main.js"
+    "build": "bun build --target node --outfile dist/main.js ./src/main.ts --format cjs --external ai --external @ai-sdk/* --external zod && node -e \"const fs=require('fs');const p='dist/main.js';fs.writeFileSync(p,'#!/usr/bin/env node\\n'+fs.readFileSync(p,'utf8'))\" && chmod +x dist/main.js",
+    "test": "bun test",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "mri": "^1.2.0",
+    "yargs-parser": "^22.0.0"
   }
 }

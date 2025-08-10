@@ -247,7 +247,7 @@ export const createAnthropicProxy = ({
             // Check if this is an OpenAI server error that we should transform
             const isOpenAIServerError = providerName === 'openai' && 
               error && typeof error === 'object' && 
-              'error' in error && error.error?.code === 'server_error';
+              'error' in error && (error as any).error?.code === 'server_error';
             
             if (isOpenAIServerError) {
               debug(1, `OpenAI server error detected in onError for ${model}. Transforming to 429 to trigger retry...`);
@@ -347,24 +347,24 @@ export const createAnthropicProxy = ({
                 
                 // Check if this is an OpenAI server error (any sequence)
                 const isOpenAIServerError = providerName === 'openai' && 
-                  chunk.error?.code === 'server_error';
+                  (chunk as any).error?.code === 'server_error';
                 
                 if (isOpenAIServerError) {
-                  debug(1, `OpenAI server error detected for ${model} at sequence ${chunk.sequence_number}. This is a known transient issue with OpenAI.`);
+                  debug(1, `OpenAI server error detected for ${model} at sequence ${(chunk as any).sequence_number}. This is a known transient issue with OpenAI.`);
                   debug(1, `Transforming to 429 rate limit error to trigger Claude Code's automatic retry...`);
                   
                   // Transform OpenAI server errors to 429 rate limit errors
                   // This should trigger Claude Code's built-in retry mechanism
                   chunk = {
                     type: "error",
-                    sequence_number: chunk.sequence_number,
+                    sequence_number: (chunk as any).sequence_number,
                     error: {
-                      type: "rate_limit_error",
+                      type: "rate_limit_error" as any,
                       code: "rate_limit_error",
                       message: "OpenAI server temporarily unavailable. Please retry your request.",
                       param: null
                     }
-                  };
+                  } as any;
                 } else {
                   // Log other errors normally
                   debug(1, `Streaming error chunk detected for ${providerName}/${model} at ${Date.now() - startTime}ms:`, chunk);
