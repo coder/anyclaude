@@ -120,13 +120,17 @@ export function logDebugError(
  * Display debug mode startup message
  */
 export function displayDebugStartup(): void {
-  if (process.env.ANYCLAUDE_DEBUG) {
+  const level = getDebugLevel();
+  if (level > 0) {
     const tmpDir = os.tmpdir();
     const errorLogPath = path.join(tmpDir, 'anyclaude-errors.log');
     process.stderr.write('\n═══════════════════════════════════════\n');
-    process.stderr.write('ANYCLAUDE DEBUG MODE ENABLED\n');
+    process.stderr.write(`ANYCLAUDE DEBUG MODE ENABLED (Level ${level})\n`);
     process.stderr.write(`Error log: ${errorLogPath}\n`);
     process.stderr.write(`Debug files: ${tmpDir}/anyclaude-debug-*.json\n`);
+    if (level >= 2) {
+      process.stderr.write('Verbose: Duplicate filtering details enabled\n');
+    }
     process.stderr.write('═══════════════════════════════════════\n\n');
   }
 }
@@ -134,6 +138,28 @@ export function displayDebugStartup(): void {
 /**
  * Check if debug mode is enabled
  */
+/**
+ * Get the debug level from ANYCLAUDE_DEBUG environment variable
+ * Returns 0 if not set, 1 for basic debug, 2 for verbose debug
+ * Defaults to 1 if unrecognized string is passed
+ */
+export function getDebugLevel(): number {
+  const debugValue = process.env.ANYCLAUDE_DEBUG;
+  if (!debugValue) return 0;
+  
+  const level = parseInt(debugValue, 10);
+  if (isNaN(level)) return 1; // Default to level 1 for any non-numeric value
+  
+  return Math.max(0, Math.min(2, level)); // Clamp to 0-2 range
+}
+
 export function isDebugEnabled(): boolean {
-  return !!process.env.ANYCLAUDE_DEBUG;
+  return getDebugLevel() > 0;
+}
+
+/**
+ * Check if verbose debug mode (level 2) is enabled
+ */
+export function isVerboseDebugEnabled(): boolean {
+  return getDebugLevel() >= 2;
 }

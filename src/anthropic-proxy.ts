@@ -16,6 +16,7 @@ import {
   logDebugError, 
   displayDebugStartup,
   isDebugEnabled,
+  isVerboseDebugEnabled,
   queueErrorMessage
 } from "./debug";
 import { filterDuplicateToolCalls } from "./filter-duplicates";
@@ -320,8 +321,8 @@ export const createAnthropicProxy = ({
         await convertToAnthropicStream(stream.fullStream).pipeTo(
           new WritableStream({
             write(chunk) {
-              // Collect chunks for debug dump
-              if (isDebugEnabled()) {
+              // Collect chunks for debug dump (only in verbose mode to save memory)
+              if (isVerboseDebugEnabled()) {
                 streamChunks.push({
                   timestamp: Date.now() - startTime,
                   chunk: chunk
@@ -383,7 +384,7 @@ export const createAnthropicProxy = ({
               );
             },
             close() {
-              if (isDebugEnabled() && streamChunks.length > 0) {
+              if (isVerboseDebugEnabled() && streamChunks.length > 0) {
                 console.error(`[ANYCLAUDE DEBUG] Stream completed for ${providerName}/${model}: ${streamChunks.length} chunks in ${Date.now() - startTime}ms`);
               }
               res.end();

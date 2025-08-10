@@ -1,5 +1,5 @@
 import type { AnthropicMessage } from "./anthropic-api-types";
-import { isDebugEnabled } from "./debug";
+import { isDebugEnabled, isVerboseDebugEnabled } from "./debug";
 
 /**
  * Filters duplicate tool calls and their corresponding tool results from messages.
@@ -21,7 +21,7 @@ export function filterDuplicateToolCalls(messages: AnthropicMessage[]): Anthropi
           if (first) {
             // This is a duplicate
             duplicateOccurrences.add(`${msgIndex}:${contentIndex}`);
-            if (isDebugEnabled()) {
+            if (isVerboseDebugEnabled()) {
               console.error(`[ANYCLAUDE DEBUG] Found duplicate tool_use '${item.id}' at message ${msgIndex}, content ${contentIndex} (first was at ${first.msgIndex}:${first.contentIndex})`);
             }
           } else {
@@ -45,7 +45,7 @@ export function filterDuplicateToolCalls(messages: AnthropicMessage[]): Anthropi
           if (first) {
             // This is a duplicate result
             duplicateResults.add(`${msgIndex}:${contentIndex}`);
-            if (isDebugEnabled()) {
+            if (isVerboseDebugEnabled()) {
               console.error(`[ANYCLAUDE DEBUG] Found duplicate tool_result for '${item.tool_use_id}' at message ${msgIndex}, content ${contentIndex} (first was at ${first.msgIndex}:${first.contentIndex})`);
             }
           } else {
@@ -57,7 +57,7 @@ export function filterDuplicateToolCalls(messages: AnthropicMessage[]): Anthropi
     }
   });
   
-  if (isDebugEnabled() && (duplicateOccurrences.size > 0 || duplicateResults.size > 0)) {
+  if (isVerboseDebugEnabled() && (duplicateOccurrences.size > 0 || duplicateResults.size > 0)) {
     console.error(`[ANYCLAUDE DEBUG] Summary: Found ${duplicateOccurrences.size} duplicate tool calls and ${duplicateResults.size} duplicate tool results`);
   }
 
@@ -74,7 +74,7 @@ export function filterDuplicateToolCalls(messages: AnthropicMessage[]): Anthropi
       });
       
       if (filteredContent.length !== msg.content.length) {
-        if (isDebugEnabled()) {
+        if (isVerboseDebugEnabled()) {
           console.error(`[ANYCLAUDE DEBUG] Filtered ${msg.content.length - filteredContent.length} duplicate tool calls from assistant message ${msgIndex}`);
         }
         return { ...msg, content: filteredContent };
@@ -90,7 +90,7 @@ export function filterDuplicateToolCalls(messages: AnthropicMessage[]): Anthropi
       });
       
       if (filteredContent.length !== msg.content.length) {
-        if (isDebugEnabled()) {
+        if (isVerboseDebugEnabled()) {
           console.error(`[ANYCLAUDE DEBUG] Filtered ${msg.content.length - filteredContent.length} duplicate tool results from user message ${msgIndex}`);
         }
         return { ...msg, content: filteredContent };
@@ -103,7 +103,7 @@ export function filterDuplicateToolCalls(messages: AnthropicMessage[]): Anthropi
   // Step 4: Verify consistency and order preservation
   const validation = validateToolCallConsistency(filteredMessages);
   
-  if (isDebugEnabled()) {
+  if (isVerboseDebugEnabled()) {
     console.error(`[ANYCLAUDE DEBUG] Final state: ${validation.toolCalls.size} tool calls, ${validation.toolResults.size} tool results`);
     
     // Check for orphaned results (this is a critical error)
@@ -122,6 +122,9 @@ export function filterDuplicateToolCalls(messages: AnthropicMessage[]): Anthropi
     } else {
       console.error(`[ANYCLAUDE DEBUG] WARNING: Order may not be preserved between tool calls and results`);
     }
+  } else if (isDebugEnabled() && validation.orphanedResults.size > 0) {
+    // Always show critical errors even at level 1
+    console.error(`[ANYCLAUDE DEBUG] ERROR: ${validation.orphanedResults.size} orphaned tool results detected - this will cause API errors`);
   }
   
   // Throw an error if we have orphaned results (critical issue)
