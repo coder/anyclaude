@@ -67,18 +67,8 @@ export function providerizeSchema(
 
   // Only add required properties for OpenAI
   if (provider === "openai") {
-    // Preserve existing required fields if they exist, otherwise don't mark any as required
-    // This prevents marking optional fields as required which causes OpenAI validation errors
-    if (schema.required && Array.isArray(schema.required)) {
-      result.required = schema.required;
-    }
-    // Only set additionalProperties to false if it's not already defined
-    // This preserves the original schema's intent
-    if (schema.additionalProperties === undefined) {
-      result.additionalProperties = false;
-    } else {
-      result.additionalProperties = schema.additionalProperties;
-    }
+    result.required = Object.keys(schema.properties);
+    result.additionalProperties = false;
   }
 
   return result;

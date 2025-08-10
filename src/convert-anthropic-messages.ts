@@ -255,21 +255,13 @@ export function convertToAnthropicMessagesPrompt({
               }
 
               case "tool-call": {
-                // Check if we already have a tool call with this ID
-                const existingToolCall = anthropicContent.find(
-                  (c) => c.type === "tool_use" && c.id === part.toolCallId
-                );
-                
-                // Skip duplicate tool calls (OpenAI doesn't allow duplicate IDs)
-                if (!existingToolCall) {
-                  anthropicContent.push({
-                    type: "tool_use",
-                    id: part.toolCallId,
-                    name: part.toolName,
-                    input: part.input,
-                    cache_control: cacheControl,
-                  });
-                }
+                anthropicContent.push({
+                  type: "tool_use",
+                  id: part.toolCallId,
+                  name: part.toolName,
+                  input: part.input,
+                  cache_control: cacheControl,
+                });
                 break;
               }
             }
