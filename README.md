@@ -31,6 +31,12 @@ Use --reasoning-effort (alias: -e) to control OpenAI reasoning.effort. Allowed v
 anyclaude --model openai/gpt-5-mini -e high
 ```
 
+Use --service-tier (alias: -t) to control OpenAI service tier. Allowed values: flex, priority.
+
+```sh
+anyclaude --model openai/gpt-5-mini -t priority
+```
+
 Note these flags may be extended to other providers in the future.
 
 ## FAQ
