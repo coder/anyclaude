@@ -13,6 +13,7 @@ import {
 
 const rawArgs = process.argv.slice(2);
 let reasoningEffort: string | undefined;
+let serviceTier: string | undefined;
 const filteredArgs: string[] = [];
 for (let i = 0; i < rawArgs.length; i++) {
   const arg = rawArgs[i]!;
@@ -26,9 +27,24 @@ for (let i = 0; i < rawArgs.length; i++) {
     i++;
     continue;
   }
+  if (arg === "--service-tier") {
+    const val = rawArgs[i + 1];
+    if (!val) {
+      console.error("Missing value for --service-tier");
+      process.exit(1);
+    }
+    serviceTier = val;
+    i++;
+    continue;
+  }
   const m = arg.match(/^--reasoning-effort=(.+)$/);
   if (m) {
     reasoningEffort = m[1]!;
+    continue;
+  }
+  const m2 = arg.match(/^--service-tier=(.+)$/);
+  if (m2) {
+    serviceTier = m2[1]!;
     continue;
   }
   filteredArgs.push(arg);
@@ -37,6 +53,13 @@ if (reasoningEffort) {
   const allowed = new Set(["minimal", "low", "medium", "high"]);
   if (!allowed.has(reasoningEffort)) {
     console.error("Invalid reasoning effort. Use minimal|low|medium|high.");
+    process.exit(1);
+  }
+}
+if (serviceTier) {
+  const allowed = new Set(["flex", "priority"]);
+  if (!allowed.has(serviceTier)) {
+    console.error("Invalid service tier. Use flex|priority.");
     process.exit(1);
   }
 }
@@ -55,6 +78,7 @@ const providers: CreateAnthropicProxyOptions["providers"] = {
         delete body["max_tokens"];
         if (typeof maxTokens !== "undefined") body.max_completion_tokens = maxTokens;
         if (reasoningEffort) body.reasoning = { effort: reasoningEffort };
+        if (serviceTier) body.service_tier = serviceTier;
         init.body = JSON.stringify(body);
       }
       return globalThis.fetch(url, init);
@@ -103,6 +127,7 @@ if (process.env.PROXY_ONLY === "true") {
       console.log("\nCustom Models:")
       console.log("  --model <provider>/<model>      e.g. openai/o3");
       console.log("  --reasoning-effort, -e <minimal|low|medium|high>");
+      console.log("  --service-tier <flex|priority>");
     }
 
     process.exit(code);

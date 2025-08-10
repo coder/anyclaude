@@ -23,6 +23,16 @@ $ anyclaude --model openai/gpt-5-mini
 
 Switch models in the Claude UI with `/model openai/gpt-5-mini`.
 
+### Reasoning effort for OpenAI models
+
+Use --reasoning-effort (alias: -e) to control OpenAI reasoning.effort. Allowed values: minimal, low, medium, high.
+
+```sh
+anyclaude --model openai/gpt-5-mini -e high
+```
+
+Note this flag will be extended to other providers in the future.
+
 ## FAQ
 
 ### What providers are supported?
