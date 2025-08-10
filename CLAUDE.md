@@ -34,6 +34,9 @@ bun install
 # Build the project (creates dist/main.js with shebang)
 bun run build
 
+# Run the built binary
+bun run ./dist/main.js
+
 # The build command:
 # 1. Compiles TypeScript to CommonJS for Node.js compatibility
 # 2. Adds Node shebang for CLI execution
