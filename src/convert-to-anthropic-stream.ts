@@ -9,6 +9,7 @@ export function convertToAnthropicStream(
   stream: ReadableStream<TextStreamPart<Record<string, Tool>>>
 ): ReadableStream<AnthropicStreamChunk> {
   let index = 0; // content block index within the current message
+  let reasoningBuffer = ""; // Buffer for accumulating reasoning text
 
   const transform = new TransformStream<
     TextStreamPart<Record<string, Tool>>,
@@ -126,14 +127,38 @@ export function convertToAnthropicStream(
           });
           break;
         }
+        case "reasoning-start": {
+          // Start a new thinking content block for OpenAI reasoning
+          controller.enqueue({
+            type: "content_block_start",
+            index,
+            content_block: { type: "thinking" as any, thinking: "" },
+          });
+          reasoningBuffer = ""; // Clear the buffer
+          break;
+        }
+        case "reasoning-delta": {
+          // Accumulate reasoning text and send as delta
+          reasoningBuffer += chunk.text;
+          controller.enqueue({
+            type: "content_block_delta",
+            index,
+            delta: { type: "text_delta", text: chunk.text },
+          });
+          break;
+        }
+        case "reasoning-end": {
+          // End the thinking content block
+          controller.enqueue({ type: "content_block_stop", index });
+          index += 1;
+          reasoningBuffer = ""; // Clear the buffer
+          break;
+        }
         case "start":
         case "abort":
         case "raw":
         case "source":
         case "file":
-        case "reasoning-start":
-        case "reasoning-delta":
-        case "reasoning-end":
           // ignore for Anthropic stream mapping
           break;
         default: {

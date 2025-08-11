@@ -26,6 +26,76 @@ export type CreateAnthropicProxyOptions = {
   port?: number;
 };
 
+/**
+ * Converts provider-specific errors to Anthropic-compatible error formats.
+ * This ensures Claude Code can properly handle and potentially retry errors.
+ * 
+ * @see https://docs.anthropic.com/en/api/errors
+ * @see https://docs.anthropic.com/en/api/streaming#error-handling
+ */
+function convertProviderErrorToAnthropic(
+  chunk: any,
+  providerName: string,
+  model: string
+): { converted: any; wasConverted: boolean; errorType: string } {
+  // Check if this is an OpenAI server error
+  const isOpenAIServerError = providerName === 'openai' && 
+    chunk.error?.code === 'server_error';
+  
+  // Check if this is an OpenAI rate limit error for context length
+  const isOpenAIRateLimitError = providerName === 'openai' && 
+    chunk.error?.message?.error?.code === 'rate_limit_exceeded' &&
+    chunk.error?.message?.error?.type === 'tokens';
+  
+  if (isOpenAIServerError) {
+    debug(1, `OpenAI server error detected for ${model}. Transforming to 429 rate limit error to trigger Claude Code's automatic retry...`);
+    
+    // Transform OpenAI server errors to 429 rate limit errors
+    // This triggers Claude Code's built-in retry mechanism
+    return {
+      converted: {
+        type: "error",
+        sequence_number: chunk.sequence_number,
+        error: {
+          type: "rate_limit_error",
+          code: "rate_limit_error",
+          message: "OpenAI server temporarily unavailable. Please retry your request.",
+          param: null
+        }
+      },
+      wasConverted: true,
+      errorType: 'server_error'
+    };
+  }
+  
+  if (isOpenAIRateLimitError) {
+    debug(1, `OpenAI rate limit (context length) error detected for ${model}. Request too large.`);
+    
+    // Transform OpenAI context length errors to Anthropic's overloaded_error format
+    // This signals to Claude Code that the request is too large
+    // According to Anthropic docs, overloaded_error is used when the API is temporarily unable to process requests
+    return {
+      converted: {
+        type: "error",
+        error: {
+          type: "overloaded_error",
+          message: `Request too large: ${chunk.error?.message?.error?.message || 'Context length exceeded for model'}`
+        }
+      },
+      wasConverted: true,
+      errorType: 'rate_limit_context'
+    };
+  }
+  
+  // No conversion needed - return original
+  debug(1, `Streaming error chunk detected for ${providerName}/${model}:`, chunk);
+  return {
+    converted: chunk,
+    wasConverted: false,
+    errorType: 'other'
+  };
+}
+
 // createAnthropicProxy creates a proxy server that accepts
 // Anthropic Message API requests and proxies them through
 // the appropriate provider - converting the results back
@@ -185,7 +255,7 @@ export const createAnthropicProxy = ({
 
         const tools = body.tools?.reduce((acc, tool) => {
           acc[tool.name] = {
-            description: tool.name,
+            description: tool.description || tool.name,
             inputSchema: jsonSchema(
               providerizeSchema(providerName, tool.input_schema)
             ),
@@ -340,35 +410,14 @@ export const createAnthropicProxy = ({
                 });
               }
               
-              // Check for streaming errors and log them (but don't interrupt the stream)
+              // Check for streaming errors and convert them to Anthropic format
               if (chunk.type === "error") {
                 // Store original error for debugging
                 const originalError = { ...chunk };
                 
-                // Check if this is an OpenAI server error (any sequence)
-                const isOpenAIServerError = providerName === 'openai' && 
-                  (chunk as any).error?.code === 'server_error';
-                
-                if (isOpenAIServerError) {
-                  debug(1, `OpenAI server error detected for ${model} at sequence ${(chunk as any).sequence_number}. This is a known transient issue with OpenAI.`);
-                  debug(1, `Transforming to 429 rate limit error to trigger Claude Code's automatic retry...`);
-                  
-                  // Transform OpenAI server errors to 429 rate limit errors
-                  // This should trigger Claude Code's built-in retry mechanism
-                  chunk = {
-                    type: "error",
-                    sequence_number: (chunk as any).sequence_number,
-                    error: {
-                      type: "rate_limit_error" as any,
-                      code: "rate_limit_error",
-                      message: "OpenAI server temporarily unavailable. Please retry your request.",
-                      param: null
-                    }
-                  } as any;
-                } else {
-                  // Log other errors normally
-                  debug(1, `Streaming error chunk detected for ${providerName}/${model} at ${Date.now() - startTime}ms:`, chunk);
-                }
+                // Convert provider-specific errors to Anthropic format
+                const errorConversion = convertProviderErrorToAnthropic(chunk, providerName, model);
+                chunk = errorConversion.converted;
                 
                 // Write comprehensive debug info including full stream dump
                 const debugFile = writeDebugToTempFile(
@@ -386,8 +435,9 @@ export const createAnthropicProxy = ({
                       provider: providerName,
                       model: model,
                       streamingError: originalError,
-                      transformedError: isOpenAIServerError ? chunk : null,
-                      wasTransformed: isOpenAIServerError,
+                      transformedError: errorConversion.wasConverted ? chunk : null,
+                      wasTransformed: errorConversion.wasConverted,
+                      errorType: errorConversion.errorType,
                       fullChunk: JSON.stringify(originalError),
                       streamDuration: Date.now() - startTime,
                       streamChunkCount: streamChunks.length,

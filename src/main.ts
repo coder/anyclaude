@@ -112,8 +112,20 @@ const providers: CreateAnthropicProxyOptions["providers"] = {
         delete body["max_tokens"];
         if (typeof maxTokens !== "undefined")
           body.max_completion_tokens = maxTokens;
-        if (reasoningEffort) body.reasoning = { effort: reasoningEffort };
+        
+        // Set up reasoning parameters for OpenAI
+        if (reasoningEffort) {
+          body.reasoning = { 
+            effort: reasoningEffort,
+            summary: "auto"  // Request reasoning summaries from OpenAI
+          };
+        } else {
+          // Always request reasoning summaries for models that support it
+          body.reasoning = { summary: "auto" };
+        }
+        
         if (serviceTier) body.service_tier = serviceTier;
+        
         init.body = JSON.stringify(body);
       }
       return globalThis.fetch(url, init);
