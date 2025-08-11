@@ -43,5 +43,11 @@ jobs:
     - name: Verify build output
       run: |
         test -f dist/main.js
+        test -f dist/main.cjs
         test -x dist/main.js
         head -n 1 dist/main.js | grep -q "#!/usr/bin/env node"
+    
+    - name: Test with Node.js
+      run: |
+        node dist/main.js --version
+        # Should output version without errors
