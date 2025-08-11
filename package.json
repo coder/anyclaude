@@ -31,8 +31,7 @@
     "build": "bun build --target node --format cjs --outfile dist/main.cjs ./src/main.ts --external ai --external @ai-sdk/* --external zod && node -e \"const fs=require('fs');const f='dist/main.cjs';fs.writeFileSync(f,fs.readFileSync(f,'utf8').replace(/import\\.meta\\.url/g,'__filename'))\" && printf '#!/usr/bin/env node\\nrequire(\"./main.cjs\");\\n' > dist/main.js && chmod +x dist/main.js",
     "test": "bun test",
     "typecheck": "tsc --noEmit",
-    "install": "bun run pack:global",
-    "pack:global": "bun run build && npm pack --silent && npm install -g anyclaude-*.tgz"
+    "install": "bun run build && npm pack --silent && npm install -g anyclaude-*.tgz"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^2.0.1",
