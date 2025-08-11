@@ -15,18 +15,35 @@ import { providerizeSchema } from "./json-schema";
 export type CreateAnthropicProxyOptions = {
   providers: Record<string, ProviderV2>;
   port?: number;
+  host?: string; // default: 127.0.0.1
+  authToken?: string; // if set, require matching custom header
+  authHeaderName?: string; // if authToken is set, required header name (default: X-AnyClaude-Token)
 };
 
 // createAnthropicProxy creates a proxy server that accepts
 // Anthropic Message API requests and proxies them through
 // the appropriate provider - converting the results back
 // to the Anthropic Message API format.
-export const createAnthropicProxy = ({
+export const createAnthropicProxy = async ({
   port,
+  host = "127.0.0.1",
   providers,
-}: CreateAnthropicProxyOptions): string => {
-  const proxy = http
-    .createServer((req, res) => {
+  authToken,
+  authHeaderName = "X-AnyClaude-Token",
+}: CreateAnthropicProxyOptions): Promise<string> => {
+  const proxy = http.createServer((req, res) => {
+      // Basic auth gate: require matching token via a custom header
+      if (authToken) {
+        const key = authHeaderName.toLowerCase();
+        const headerVal = req.headers[key];
+        const provided = Array.isArray(headerVal) ? headerVal[0] : headerVal;
+        if (!provided || provided !== authToken) {
+          res.writeHead(401, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: "Unauthorized" }));
+          return;
+        }
+      }
+
       if (!req.url) {
         res.writeHead(400, {
           "Content-Type": "application/json",
@@ -221,8 +238,18 @@ export const createAnthropicProxy = ({
           })
         );
       });
-    })
-    .listen(port ?? 0);
+  });
+
+  // Start listening using a random ephemeral port by default (0) and only
+  // resolve once the server has successfully bound, avoiding address() races.
+  const listenPort = typeof port === "number" ? port : 0;
+  await new Promise<void>((resolve, reject) => {
+    proxy.once("error", reject);
+    proxy.listen(listenPort, host, () => {
+      proxy.off("error", reject);
+      resolve();
+    });
+  });
 
   const address = proxy.address();
   if (!address) {
@@ -231,5 +258,5 @@ export const createAnthropicProxy = ({
   if (typeof address === "string") {
     return address;
   }
-  return `http://localhost:${address.port}`;
+  return `http://${host === "127.0.0.1" ? "localhost" : host}:${address.port}`;
 };
