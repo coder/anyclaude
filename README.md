@@ -1,6 +1,6 @@
 # anyclaude
 
-![NPM Version](https://img.shields.io/npm/v/anyclaude)
+[![NPM Version](https://img.shields.io/npm/v/anyclaude)](https://www.npmjs.com/package/anyclaude)
 
 Use Claude Code with OpenAI, Google, xAI, and other providers.
 
