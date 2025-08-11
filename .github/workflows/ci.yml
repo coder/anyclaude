@@ -47,9 +47,12 @@ jobs:
         test -x dist/main.js
         head -n 1 dist/main.js | grep -q "#!/usr/bin/env node"
     
+    - name: Install Claude Code CLI
+      run: npm install -g @anthropic-ai/claude-code
+    
     - name: Test with Node.js
       run: |
-        # Test in proxy-only mode (doesn't spawn claude)
-        PROXY_ONLY=true timeout 2s node dist/main.js || true
-        # Check that proxy started successfully
-        PROXY_ONLY=true node dist/main.js 2>&1 | grep -q "Proxy only mode"
+        # Test that the build works with --help
+        node dist/main.js --help
+        # Verify it shows Claude Code help output
+        node dist/main.js --help | grep -q "Usage: claude"
