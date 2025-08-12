@@ -140,6 +140,11 @@ export type AnthropicStreamChunk =
             text: string;
           }
         | {
+            type: "thinking";
+            thinking: string;
+            signature?: string;
+          }
+        | {
             type: "tool_use";
             id: string;
             name: string;
