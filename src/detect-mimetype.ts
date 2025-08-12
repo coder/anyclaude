@@ -125,7 +125,7 @@ export function detectMimeType({
         ? processedData.startsWith(signature.base64Prefix)
         : processedData.length >= signature.bytesPrefix.length &&
           signature.bytesPrefix.every(
-            (byte, index) => processedData[index] === byte,
+            (byte, index) => processedData[index] === byte
           )
     ) {
       return signature.mimeType;

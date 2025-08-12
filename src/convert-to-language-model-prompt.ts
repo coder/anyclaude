@@ -32,7 +32,7 @@ export function convertToLanguageModelMessage(
   downloadedAssets: Record<
     string,
     { mimeType: string | undefined; data: Uint8Array }
-  >,
+  >
 ): LanguageModelV2Message {
   const role = message.role;
   switch (role) {
@@ -168,7 +168,7 @@ function convertPartToLanguageModelPart(
   downloadedAssets: Record<
     string,
     { mimeType: string | undefined; data: Uint8Array }
-  >,
+  >
 ): LanguageModelV2TextPart | LanguageModelV2FilePart {
   if (part.type === "text") {
     return {
@@ -210,7 +210,7 @@ function convertPartToLanguageModelPart(
     // If the content is a data URL, we want to convert that to a Uint8Array
     if (content.protocol === "data:") {
       const { mimeType: dataUrlMimeType, base64Content } = splitDataUrl(
-        content.toString(),
+        content.toString()
       );
 
       if (dataUrlMimeType == null || base64Content == null) {

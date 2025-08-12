@@ -6,7 +6,7 @@ import {
 } from "./anthropic-api-types";
 
 export function convertToAnthropicStream(
-  stream: ReadableStream<TextStreamPart<Record<string, Tool>>>,
+  stream: ReadableStream<TextStreamPart<Record<string, Tool>>>
 ): ReadableStream<AnthropicStreamChunk> {
   let index = 0; // content block index within the current message
   let reasoningBuffer = ""; // Buffer for accumulating reasoning text

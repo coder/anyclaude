@@ -36,7 +36,7 @@ export type CreateAnthropicProxyOptions = {
 function convertProviderErrorToAnthropic(
   chunk: any,
   providerName: string,
-  model: string,
+  model: string
 ): { converted: any; wasConverted: boolean; errorType: string } {
   // Check if this is an OpenAI server error
   const isOpenAIServerError =
@@ -51,7 +51,7 @@ function convertProviderErrorToAnthropic(
   if (isOpenAIServerError) {
     debug(
       1,
-      `OpenAI server error detected for ${model}. Transforming to 429 rate limit error to trigger Claude Code's automatic retry...`,
+      `OpenAI server error detected for ${model}. Transforming to 429 rate limit error to trigger Claude Code's automatic retry...`
     );
 
     // Transform OpenAI server errors to 429 rate limit errors
@@ -76,7 +76,7 @@ function convertProviderErrorToAnthropic(
   if (isOpenAIRateLimitError) {
     debug(
       1,
-      `OpenAI rate limit (context length) error detected for ${model}. Request too large.`,
+      `OpenAI rate limit (context length) error detected for ${model}. Request too large.`
     );
 
     // Transform OpenAI context length errors to Anthropic's request_too_large format
@@ -101,7 +101,7 @@ function convertProviderErrorToAnthropic(
   debug(
     1,
     `Streaming error chunk detected for ${providerName}/${model}:`,
-    chunk,
+    chunk
   );
   return {
     converted: chunk,
@@ -130,7 +130,7 @@ export const createAnthropicProxy = ({
         res.end(
           JSON.stringify({
             error: "No URL provided",
-          }),
+          })
         );
         return;
       }
@@ -185,7 +185,7 @@ export const createAnthropicProxy = ({
                     statusCode,
                     headers: proxiedRes.headers,
                     body: responseBody,
-                  },
+                  }
                 );
 
                 if (debugFile) {
@@ -198,7 +198,7 @@ export const createAnthropicProxy = ({
             proxiedRes.pipe(res, {
               end: true,
             });
-          },
+          }
         );
 
         if (requestBody) {
@@ -232,7 +232,7 @@ export const createAnthropicProxy = ({
             req.on("error", (err) => {
               reject(err);
             });
-          },
+          }
         );
 
         const modelParts = body.model.split("/");
@@ -272,12 +272,12 @@ export const createAnthropicProxy = ({
             acc[tool.name] = {
               description: tool.description || tool.name,
               inputSchema: jsonSchema(
-                providerizeSchema(providerName, tool.input_schema),
+                providerizeSchema(providerName, tool.input_schema)
               ),
             };
             return acc;
           },
-          {} as Record<string, Tool>,
+          {} as Record<string, Tool>
         );
 
         let stream;
@@ -326,7 +326,7 @@ export const createAnthropicProxy = ({
                     input_tokens: usage.inputTokens,
                     output_tokens: usage.outputTokens,
                   },
-                }),
+                })
               );
             },
             onError: ({ error }) => {
@@ -344,7 +344,7 @@ export const createAnthropicProxy = ({
               if (isOpenAIServerError) {
                 debug(
                   1,
-                  `OpenAI server error detected in onError for ${model}. Transforming to 429 to trigger retry...`,
+                  `OpenAI server error detected in onError for ${model}. Transforming to 429 to trigger retry...`
                 );
                 // Transform to rate limit error to trigger retry
                 statusCode = 429;
@@ -366,7 +366,7 @@ export const createAnthropicProxy = ({
               ) {
                 debug(
                   1,
-                  `OpenAI rate limit error detected in onError for ${model}. Transforming to 429 to trigger retry...`,
+                  `OpenAI rate limit error detected in onError for ${model}. Transforming to 429 to trigger retry...`
                 );
                 // Transform to rate limit error to trigger retry
                 statusCode = 429;
@@ -419,12 +419,12 @@ export const createAnthropicProxy = ({
                       systemPromptLength:
                         body.system?.reduce(
                           (acc, s) => acc + s.text.length,
-                          0,
+                          0
                         ) || 0,
                       messageCount: body.messages.length,
                     },
                   }),
-                },
+                }
               );
 
               if (debugFile) {
@@ -445,7 +445,7 @@ export const createAnthropicProxy = ({
                       transformedError instanceof Error
                         ? transformedError.message
                         : transformedError,
-                  }),
+                  })
                 );
             },
           });
@@ -462,7 +462,7 @@ export const createAnthropicProxy = ({
                 type: "overloaded_error",
                 message: `Connection failed to ${providerName}. The service may be temporarily unavailable.`,
               },
-            }),
+            })
           );
           return;
         }
@@ -474,7 +474,7 @@ export const createAnthropicProxy = ({
             debug(
               1,
               `Error consuming stream for ${providerName}/${model}:`,
-              error,
+              error
             );
             // Return a 503 to trigger retry
             res.writeHead(503, { "Content-Type": "application/json" });
@@ -485,7 +485,7 @@ export const createAnthropicProxy = ({
                   type: "overloaded_error",
                   message: `Failed to process response from ${providerName}. The service may be temporarily unavailable.`,
                 },
-              }),
+              })
             );
           }
           return;
@@ -521,7 +521,7 @@ export const createAnthropicProxy = ({
                   const errorConversion = convertProviderErrorToAnthropic(
                     chunk,
                     providerName,
-                    model,
+                    model
                   );
                   chunk = errorConversion.converted;
 
@@ -556,12 +556,12 @@ export const createAnthropicProxy = ({
                           systemPromptLength:
                             body.system?.reduce(
                               (acc, s) => acc + s.text.length,
-                              0,
+                              0
                             ) || 0,
                           messageCount: body.messages.length,
                         },
                       }),
-                    },
+                    }
                   );
 
                   if (debugFile) {
@@ -571,14 +571,14 @@ export const createAnthropicProxy = ({
                     });
                   } else if (isDebugEnabled()) {
                     queueErrorMessage(
-                      `Failed to write debug file for streaming error`,
+                      `Failed to write debug file for streaming error`
                     );
                   }
                 }
 
                 // Write all chunks (including errors) to the stream - matching original behavior
                 res.write(
-                  `event: ${chunk.type}\ndata: ${JSON.stringify(chunk)}\n\n`,
+                  `event: ${chunk.type}\ndata: ${JSON.stringify(chunk)}\n\n`
                 );
               },
               close() {
@@ -587,18 +587,18 @@ export const createAnthropicProxy = ({
                     2,
                     `Stream completed for ${providerName}/${model}: ${
                       streamChunks.length
-                    } chunks in ${Date.now() - startTime}ms`,
+                    } chunks in ${Date.now() - startTime}ms`
                   );
                 }
                 res.end();
               },
-            }),
+            })
           );
         } catch (error) {
           debug(
             1,
             `Error in stream processing for ${providerName}/${model}:`,
-            error,
+            error
           );
 
           // If we haven't started writing the response yet, send a proper error
@@ -611,7 +611,7 @@ export const createAnthropicProxy = ({
                   type: "overloaded_error",
                   message: `Stream processing failed for ${providerName}. The service may be temporarily unavailable.`,
                 },
-              }),
+              })
             );
           } else {
             // If we've already started streaming, send an error event
@@ -622,7 +622,7 @@ export const createAnthropicProxy = ({
                   type: "overloaded_error",
                   message: `Stream interrupted. The service may be temporarily unavailable.`,
                 },
-              })}\n\n`,
+              })}\n\n`
             );
             res.end();
           }
@@ -634,7 +634,7 @@ export const createAnthropicProxy = ({
         res.end(
           JSON.stringify({
             error: "Internal server error: " + err.message,
-          }),
+          })
         );
       });
     })

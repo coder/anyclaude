@@ -27,7 +27,7 @@ export interface DebugInfo {
 export function writeDebugToTempFile(
   statusCode: number,
   request: DebugInfo["request"],
-  response?: DebugInfo["response"],
+  response?: DebugInfo["response"]
 ): string | null {
   // Log 4xx errors (except 429) when ANYCLAUDE_DEBUG is set
   const debugEnabled = process.env.ANYCLAUDE_DEBUG;
@@ -106,7 +106,7 @@ export function logDebugError(
   type: "HTTP" | "Provider" | "Streaming",
   statusCode: number,
   debugFile: string | null,
-  context?: { provider?: string; model?: string },
+  context?: { provider?: string; model?: string }
 ): void {
   if (!debugFile) return;
 

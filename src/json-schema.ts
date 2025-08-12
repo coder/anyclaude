@@ -2,7 +2,7 @@ import type { JSONSchema7 } from "json-schema";
 
 export function providerizeSchema(
   provider: string,
-  schema: JSONSchema7,
+  schema: JSONSchema7
 ): JSONSchema7 {
   // Handle primitive types or schemas without properties
   if (
@@ -34,7 +34,7 @@ export function providerizeSchema(
         // Recursively process nested objects
         processedProperties[key] = providerizeSchema(
           provider,
-          processedProperty,
+          processedProperty
         );
       } else if (
         processedProperty.type === "array" &&
