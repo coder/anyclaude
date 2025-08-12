@@ -18,15 +18,16 @@
     "dist/main.cjs"
   ],
   "devDependencies": {
-    "@types/bun": "latest",
-    "@types/json-schema": "^7.0.15",
-    "@types/yargs-parser": "^21.0.3",
     "@ai-sdk/anthropic": "^2.0.1",
     "@ai-sdk/azure": "^2.0.6",
     "@ai-sdk/google": "^2.0.3",
     "@ai-sdk/openai": "^2.0.6",
     "@ai-sdk/xai": "^2.0.3",
+    "@types/bun": "latest",
+    "@types/json-schema": "^7.0.15",
+    "@types/yargs-parser": "^21.0.3",
     "ai": "^5.0.8",
+    "prettier": "^3.6.2",
     "zod": "3.25.76"
   },
   "peerDependencies": {
@@ -38,10 +39,20 @@
     "build": "bun build --target node --format cjs --outfile dist/main.cjs ./src/main.ts && node -e \"const fs=require('fs');const f='dist/main.cjs';fs.writeFileSync(f,fs.readFileSync(f,'utf8').replace(/import\\.meta\\.url/g,'__filename'))\" && printf '#!/usr/bin/env node\\nrequire(\"./main.cjs\");\\n' > dist/main.js && chmod +x dist/main.js",
     "test": "bun test",
     "typecheck": "tsc --noEmit",
+    "fmt": "prettier --write .",
     "install:global": "bun run build && npm pack --silent && npm install -g anyclaude-*.tgz"
   },
   "dependencies": {
     "yargs-parser": "^22.0.0",
     "json-schema": "^0.4.0"
+  },
+  "prettier": {
+    "printWidth": 80,
+    "singleQuote": false,
+    "semi": true,
+    "trailingComma": "es5",
+    "arrowParens": "always",
+    "bracketSpacing": true,
+    "endOfLine": "lf"
   }
 }

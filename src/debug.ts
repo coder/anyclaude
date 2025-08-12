@@ -31,8 +31,13 @@ export function writeDebugToTempFile(
 ): string | null {
   // Log 4xx errors (except 429) when ANYCLAUDE_DEBUG is set
   const debugEnabled = process.env.ANYCLAUDE_DEBUG;
-  
-  if (!debugEnabled || statusCode === 429 || statusCode < 400 || statusCode >= 500) {
+
+  if (
+    !debugEnabled ||
+    statusCode === 429 ||
+    statusCode < 400 ||
+    statusCode >= 500
+  ) {
     return null;
   }
 
@@ -54,13 +59,13 @@ export function writeDebugToTempFile(
       response: response || null,
     };
 
-    fs.writeFileSync(filepath, JSON.stringify(debugData, null, 2), 'utf8');
-    
+    fs.writeFileSync(filepath, JSON.stringify(debugData, null, 2), "utf8");
+
     // Also write a simpler error log file that's easier to tail
-    const errorLogPath = path.join(tmpDir, 'anyclaude-errors.log');
+    const errorLogPath = path.join(tmpDir, "anyclaude-errors.log");
     const errorMessage = `[${new Date().toISOString()}] HTTP ${statusCode} - Debug: ${filepath}\n`;
-    fs.appendFileSync(errorLogPath, errorMessage, 'utf8');
-    
+    fs.appendFileSync(errorLogPath, errorMessage, "utf8");
+
     return filepath;
   } catch (error) {
     console.error("[ANYCLAUDE DEBUG] Failed to write debug file:", error);
@@ -83,13 +88,13 @@ export function queueErrorMessage(message: string): void {
 function displayPendingErrors(): void {
   if (pendingErrorMessages.length > 0) {
     // Use stderr and add newlines to separate from Claude's output
-    process.stderr.write('\n\n═══════════════════════════════════════\n');
-    process.stderr.write('ANYCLAUDE DEBUG - Errors detected:\n');
-    process.stderr.write('═══════════════════════════════════════\n');
-    pendingErrorMessages.forEach(msg => {
-      process.stderr.write(msg + '\n');
+    process.stderr.write("\n\n═══════════════════════════════════════\n");
+    process.stderr.write("ANYCLAUDE DEBUG - Errors detected:\n");
+    process.stderr.write("═══════════════════════════════════════\n");
+    pendingErrorMessages.forEach((msg) => {
+      process.stderr.write(msg + "\n");
     });
-    process.stderr.write('═══════════════════════════════════════\n\n');
+    process.stderr.write("═══════════════════════════════════════\n\n");
     pendingErrorMessages = [];
   }
 }
@@ -104,7 +109,7 @@ export function logDebugError(
   context?: { provider?: string; model?: string }
 ): void {
   if (!debugFile) return;
-  
+
   let message = `${type} error`;
   if (context?.provider && context?.model) {
     message += ` (${context.provider}/${context.model})`;
@@ -112,7 +117,7 @@ export function logDebugError(
     message += ` ${statusCode}`;
   }
   message += ` - Debug info written to: ${debugFile}`;
-  
+
   queueErrorMessage(message);
 }
 
@@ -123,15 +128,15 @@ export function displayDebugStartup(): void {
   const level = getDebugLevel();
   if (level > 0) {
     const tmpDir = os.tmpdir();
-    const errorLogPath = path.join(tmpDir, 'anyclaude-errors.log');
-    process.stderr.write('\n═══════════════════════════════════════\n');
+    const errorLogPath = path.join(tmpDir, "anyclaude-errors.log");
+    process.stderr.write("\n═══════════════════════════════════════\n");
     process.stderr.write(`ANYCLAUDE DEBUG MODE ENABLED (Level ${level})\n`);
     process.stderr.write(`Error log: ${errorLogPath}\n`);
     process.stderr.write(`Debug files: ${tmpDir}/anyclaude-debug-*.json\n`);
     if (level >= 2) {
-      process.stderr.write('Verbose: Duplicate filtering details enabled\n');
+      process.stderr.write("Verbose: Duplicate filtering details enabled\n");
     }
-    process.stderr.write('═══════════════════════════════════════\n\n');
+    process.stderr.write("═══════════════════════════════════════\n\n");
   }
 }
 
@@ -146,10 +151,10 @@ export function displayDebugStartup(): void {
 export function getDebugLevel(): number {
   const debugValue = process.env.ANYCLAUDE_DEBUG;
   if (!debugValue) return 0;
-  
+
   const level = parseInt(debugValue, 10);
   if (isNaN(level)) return 1; // Default to level 1 for any non-numeric value
-  
+
   return Math.max(0, Math.min(2, level)); // Clamp to 0-2 range
 }
 
@@ -172,12 +177,13 @@ export function isVerboseDebugEnabled(): boolean {
  */
 export function debug(level: 1 | 2, message: string, data?: any): void {
   if (getDebugLevel() >= level) {
-    const prefix = '[ANYCLAUDE DEBUG]';
+    const prefix = "[ANYCLAUDE DEBUG]";
     if (data !== undefined) {
       // For objects/errors, stringify with a length limit
-      const dataStr = typeof data === 'object' ? 
-        JSON.stringify(data).substring(0, 200) : 
-        String(data);
+      const dataStr =
+        typeof data === "object"
+          ? JSON.stringify(data).substring(0, 200)
+          : String(data);
       console.error(`${prefix} ${message}`, dataStr);
     } else {
       console.error(`${prefix} ${message}`);

@@ -169,9 +169,7 @@ function convertPartToLanguageModelPart(
     string,
     { mimeType: string | undefined; data: Uint8Array }
   >
-):
-  | LanguageModelV2TextPart
-  | LanguageModelV2FilePart {
+): LanguageModelV2TextPart | LanguageModelV2FilePart {
   if (part.type === "text") {
     return {
       type: "text",

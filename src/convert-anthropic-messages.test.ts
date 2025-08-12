@@ -34,7 +34,7 @@ describe("convertToAnthropicMessagesPrompt", () => {
       // Should only have one tool_use in the output
       const assistantMessage = result.prompt.messages[0];
       expect(assistantMessage?.role).toBe("assistant");
-      
+
       if (assistantMessage?.role === "assistant") {
         const toolUses = assistantMessage.content.filter(
           (c) => c.type === "tool_use"
@@ -75,7 +75,7 @@ describe("convertToAnthropicMessagesPrompt", () => {
 
       const assistantMessage = result.prompt.messages[0];
       expect(assistantMessage?.role).toBe("assistant");
-      
+
       if (assistantMessage?.role === "assistant") {
         const toolUses = assistantMessage.content.filter(
           (c) => c.type === "tool_use"
@@ -125,7 +125,7 @@ describe("convertToAnthropicMessagesPrompt", () => {
 
       const assistantMessage = result.prompt.messages[0];
       expect(assistantMessage?.role).toBe("assistant");
-      
+
       if (assistantMessage?.role === "assistant") {
         // Should have 2 text blocks and 1 tool_use (duplicate filtered)
         const textBlocks = assistantMessage.content.filter(
@@ -134,7 +134,7 @@ describe("convertToAnthropicMessagesPrompt", () => {
         const toolUses = assistantMessage.content.filter(
           (c) => c.type === "tool_use"
         );
-        
+
         expect(textBlocks).toHaveLength(2);
         expect(toolUses).toHaveLength(1);
         expect(toolUses[0]?.id).toBe("call_abc");
@@ -163,7 +163,7 @@ describe("convertToAnthropicMessagesPrompt", () => {
 
       const assistantMessage = result.prompt.messages[0];
       expect(assistantMessage?.role).toBe("assistant");
-      
+
       if (assistantMessage?.role === "assistant") {
         const toolUses = assistantMessage.content.filter(
           (c) => c.type === "tool_use"

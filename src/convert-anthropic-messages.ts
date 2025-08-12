@@ -15,7 +15,7 @@ import type {
   AnthropicToolResultContent,
 } from "./anthropic-api-types";
 import type { ModelMessage, FilePart, TextPart, ToolCallPart } from "ai";
-import type { ReasoningUIPart } from 'ai';
+import type { ReasoningUIPart } from "ai";
 
 export function convertToAnthropicMessagesPrompt({
   prompt,
@@ -85,7 +85,9 @@ export function convertToAnthropicMessagesPrompt({
               const isLastPart = j === content.length - 1;
               const cacheControl =
                 getCacheControl(part.providerOptions) ??
-                (isLastPart ? getCacheControl(message.providerOptions) : undefined);
+                (isLastPart
+                  ? getCacheControl(message.providerOptions)
+                  : undefined);
 
               if (part.type === "text") {
                 anthropicContent.push({
@@ -103,12 +105,13 @@ export function convertToAnthropicMessagesPrompt({
                       part.data instanceof URL
                         ? { type: "url", url: part.data.toString() }
                         : {
-                          type: "base64",
-                          media_type: "application/pdf",
-                          data: typeof part.data === "string"
-                            ? part.data
-                            : convertUint8ArrayToBase64(part.data),
-                        },
+                            type: "base64",
+                            media_type: "application/pdf",
+                            data:
+                              typeof part.data === "string"
+                                ? part.data
+                                : convertUint8ArrayToBase64(part.data),
+                          },
                     cache_control: cacheControl,
                   });
                 } else if (mediaType?.startsWith("image/")) {
@@ -118,12 +121,13 @@ export function convertToAnthropicMessagesPrompt({
                       part.data instanceof URL
                         ? { type: "url", url: part.data.toString() }
                         : {
-                          type: "base64",
-                          media_type: mediaType ?? "image/jpeg",
-                          data: typeof part.data === "string"
-                            ? part.data
-                            : convertUint8ArrayToBase64(part.data),
-                        },
+                            type: "base64",
+                            media_type: mediaType ?? "image/jpeg",
+                            data:
+                              typeof part.data === "string"
+                                ? part.data
+                                : convertUint8ArrayToBase64(part.data),
+                          },
                     cache_control: cacheControl,
                   });
                 } else {
@@ -141,7 +145,9 @@ export function convertToAnthropicMessagesPrompt({
               const isLastPart = i === content.length - 1;
               const cacheControl =
                 getCacheControl(part.providerOptions) ??
-                (isLastPart ? getCacheControl(message.providerOptions) : undefined);
+                (isLastPart
+                  ? getCacheControl(message.providerOptions)
+                  : undefined);
 
               // Map LanguageModelV2ToolResultPart.output to Anthropic tool_result content
               let toolResultContent: AnthropicToolResultContent["content"];
@@ -167,14 +173,26 @@ export function convertToAnthropicMessagesPrompt({
                 case "content":
                   toolResultContent = part.output.value.map((c) =>
                     c.type === "text"
-                      ? { type: "text" as const, text: c.text, cache_control: undefined }
-                      : c.mediaType === "application/pdf"
-                        ? { type: "text" as const, text: "[document content omitted]", cache_control: undefined }
-                        : {
-                          type: "image" as const,
-                          source: { type: "base64" as const, media_type: c.mediaType, data: c.data },
+                      ? {
+                          type: "text" as const,
+                          text: c.text,
                           cache_control: undefined,
                         }
+                      : c.mediaType === "application/pdf"
+                        ? {
+                            type: "text" as const,
+                            text: "[document content omitted]",
+                            cache_control: undefined,
+                          }
+                        : {
+                            type: "image" as const,
+                            source: {
+                              type: "base64" as const,
+                              media_type: c.mediaType,
+                              data: c.data,
+                            },
+                            cache_control: undefined,
+                          }
                   );
                   isError = false;
                   break;
@@ -259,7 +277,7 @@ export function convertToAnthropicMessagesPrompt({
                 const existingToolCall = anthropicContent.find(
                   (c) => c.type === "tool_use" && c.id === part.toolCallId
                 );
-                
+
                 // Skip duplicate tool calls (OpenAI doesn't allow duplicate IDs)
                 if (!existingToolCall) {
                   anthropicContent.push({

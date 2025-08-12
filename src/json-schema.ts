@@ -22,7 +22,10 @@ export function providerizeSchema(
       let processedProperty = property as JSONSchema7;
 
       // Remove uri format for OpenAI and Google
-      if ((provider === "openai" || provider === "google") && processedProperty.format === "uri") {
+      if (
+        (provider === "openai" || provider === "google") &&
+        processedProperty.format === "uri"
+      ) {
         processedProperty = { ...processedProperty };
         delete processedProperty.format;
       }
