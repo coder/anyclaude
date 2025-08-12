@@ -7,6 +7,7 @@ Use Claude Code with OpenAI, Google, xAI, and other providers.
 - Extremely simple setup - just a basic command wrapper
 - Uses the AI SDK for simple support of new providers
 - Works with Claude Code GitHub Actions
+- Optimized for OpenAI's gpt-5 series
 
 <img src="./demo.png" width="65%">
 

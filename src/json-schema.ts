@@ -2,7 +2,7 @@ import type { JSONSchema7 } from "json-schema";
 
 export function providerizeSchema(
   provider: string,
-  schema: JSONSchema7
+  schema: JSONSchema7,
 ): JSONSchema7 {
   // Handle primitive types or schemas without properties
   if (
@@ -22,7 +22,10 @@ export function providerizeSchema(
       let processedProperty = property as JSONSchema7;
 
       // Remove uri format for OpenAI and Google
-      if ((provider === "openai" || provider === "google") && processedProperty.format === "uri") {
+      if (
+        (provider === "openai" || provider === "google") &&
+        processedProperty.format === "uri"
+      ) {
         processedProperty = { ...processedProperty };
         delete processedProperty.format;
       }
@@ -31,7 +34,7 @@ export function providerizeSchema(
         // Recursively process nested objects
         processedProperties[key] = providerizeSchema(
           provider,
-          processedProperty
+          processedProperty,
         );
       } else if (
         processedProperty.type === "array" &&

@@ -39,7 +39,7 @@ export function convertDataContentToBase64String(content: DataContent): string {
   @returns Uint8Array.
    */
 export function convertDataContentToUint8Array(
-  content: DataContent
+  content: DataContent,
 ): Uint8Array {
   if (content instanceof Uint8Array) {
     return content;
