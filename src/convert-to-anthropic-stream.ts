@@ -27,7 +27,12 @@ export function convertToAnthropicStream(
               model: "claude-4-sonnet-20250514",
               stop_reason: null,
               stop_sequence: null,
-              usage: { input_tokens: 0, output_tokens: 0 },
+              usage: {
+                input_tokens: 0,
+                output_tokens: 0,
+                cache_creation_input_tokens: 0,
+                cache_read_input_tokens: 0,
+              },
             },
           });
           break;
@@ -42,6 +47,14 @@ export function convertToAnthropicStream(
             usage: {
               input_tokens: chunk.usage.inputTokens ?? 0,
               output_tokens: chunk.usage.outputTokens ?? 0,
+              // OpenAI provides cached tokens via cachedInputTokens or in providerMetadata
+              cache_creation_input_tokens: 0, // OpenAI doesn't report cache creation separately
+              cache_read_input_tokens:
+                chunk.usage.cachedInputTokens ??
+                (typeof chunk.providerMetadata?.openai?.cached_tokens ===
+                "number"
+                  ? chunk.providerMetadata.openai.cached_tokens
+                  : 0),
             },
           });
           break;
