@@ -52,14 +52,10 @@ See [the providers](./src/main.ts#L17) for the implementation.
 
 Set a custom OpenAI endpoint with `OPENAI_API_URL` to use OpenRouter
 
+`ANTHROPIC_MODEL` and `ANTHROPIC_SMALL_MODEL` are supported with the `<provider>/` syntax.
+
 ### How does this work?
 
 Claude Code has added support for customizing the Anthropic endpoint with `ANTHROPIC_BASE_URL`.
 
 anyclaude spawns a simple HTTP server that translates between Anthropic's format and the [AI SDK](https://github.com/vercel/ai) format, enabling support for any [AI SDK](https://github.com/vercel/ai) provider (e.g., Google, OpenAI, etc.)
-
-## Do other models work better in Claude Code?
-
-Not really, but it's fun to experiment with them.
-
-`ANTHROPIC_MODEL` and `ANTHROPIC_SMALL_MODEL` are supported with the `<provider>/` syntax.

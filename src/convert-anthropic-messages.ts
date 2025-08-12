@@ -36,7 +36,7 @@ export function convertToAnthropicMessagesPrompt({
   const messages: AnthropicMessagesPrompt["messages"] = [];
 
   function getCacheControl(
-    providerOptions: SharedV2ProviderOptions | undefined,
+    providerOptions: SharedV2ProviderOptions | undefined
   ): AnthropicCacheControl | undefined {
     const anthropic = providerOptions?.anthropic;
 
@@ -192,7 +192,7 @@ export function convertToAnthropicMessagesPrompt({
                               data: c.data,
                             },
                             cache_control: undefined,
-                          },
+                          }
                   );
                   isError = false;
                   break;
@@ -275,7 +275,7 @@ export function convertToAnthropicMessagesPrompt({
               case "tool-call": {
                 // Check if we already have a tool call with this ID
                 const existingToolCall = anthropicContent.find(
-                  (c) => c.type === "tool_use" && c.id === part.toolCallId,
+                  (c) => c.type === "tool_use" && c.id === part.toolCallId
                 );
 
                 // Skip duplicate tool calls (OpenAI doesn't allow duplicate IDs)
@@ -326,7 +326,7 @@ type UserBlock = {
 };
 
 function groupIntoBlocks(
-  prompt: LanguageModelV2Prompt,
+  prompt: LanguageModelV2Prompt
 ): Array<SystemBlock | AssistantBlock | UserBlock> {
   const blocks: Array<SystemBlock | AssistantBlock | UserBlock> = [];
   let currentBlock: SystemBlock | AssistantBlock | UserBlock | undefined =
@@ -382,7 +382,7 @@ function groupIntoBlocks(
 }
 
 export function convertFromAnthropicMessages(
-  messages: ReadonlyArray<AnthropicMessage>,
+  messages: ReadonlyArray<AnthropicMessage>
 ) {
   const result: ModelMessage[] = [];
   let toolCalls: Record<string, ToolCallPart> = {};
