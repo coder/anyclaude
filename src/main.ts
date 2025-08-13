@@ -183,6 +183,7 @@ if (process.env.PROXY_ONLY === "true") {
       ANTHROPIC_BASE_URL: proxyURL,
     },
     stdio: "inherit",
+    shell: process.platform === "win32" // only use shell on Windows
   });
   proc.on("exit", (code) => {
     if (helpRequested) {
