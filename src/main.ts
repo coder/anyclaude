@@ -183,6 +183,7 @@ if (process.env.PROXY_ONLY === "true") {
       ANTHROPIC_BASE_URL: proxyURL,
     },
     stdio: "inherit",
+    shell: true // <-- this lets Windows find "claude" in PATH
   });
   proc.on("exit", (code) => {
     if (helpRequested) {
